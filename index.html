@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ペットフードレビュー分析ツール</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #4CAF50;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background-color: #f9f9f9;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            background-color: #e8f5e9;
+        }
+        .upload-area.dragover {
+            background-color: #c8e6c9;
+            border-color: #2E7D32;
+        }
+        .file-input {
+            display: none;
+        }
+        .upload-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        .upload-button:hover {
+            background-color: #45a049;
+        }
+        .progress {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .stats {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .sample-results {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .result-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: white;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        .success {
+            color: #388e3c;
+            font-weight: bold;
+        }
+        .file-list {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        .remove-file {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .remove-file:hover {
+            background-color: #d32f2f;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>ペットフードレビュー分析ツール</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>ここにExcelファイルをドラッグ&ドロップ<br>または</p>
+            <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" multiple>
+            <label for="fileInput" class="upload-button">ファイルを選択</label>
+            <p style="margin-top: 20px; font-size: 14px; color: #666;">
+                必要なファイル：<br>
+                1. Raw_Review.xlsx（レビューデータ）<br>
+                2. Master.xlsx（ラベルマスター）※オプション
+            </p>
+        </div>
+
+        <div id="fileList" class="file-list" style="display: none;">
+            <h3>アップロードされたファイル</h3>
+            <div id="fileItems"></div>
+        </div>
+        
+        <div id="status" class="progress" style="display: none;">
+            ファイルを読み込んでください
+        </div>
+
+        <div style="text-align: center;">
+            <button onclick="processData()" id="processBtn" style="display: none;">データ処理を開始</button>
+            <button onclick="downloadExcel()" id="downloadBtn" disabled>Excelファイルをダウンロード</button>
+        </div>
+
+        <div id="stats" class="stats" style="display: none;">
+            <h3>処理統計</h3>
+            <div id="statsContent"></div>
+        </div>
+
+        <div id="sampleResults" class="sample-results" style="display: none;">
+            <h3>処理結果サンプル</h3>
+            <div id="sampleContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let processedData = null;
+        let rawData = null;
+        let masterLabels = [
+            '食べる', '食べない', '吐き戻し・便の改善', 'その他', '安い',
+            '配送・梱包', '高い・値上げ', '吐く・便が悪くなる', '賞味期限', 'ジッパーが欲しい'
+        ];
+        let uploadedFiles = {};
+
+        // ドラッグ&ドロップの設定
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        uploadedFiles[file.name] = {
+                            name: file.name,
+                            data: e.target.result
+                        };
+                        updateFileList();
+                        checkFiles();
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+            });
+        }
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            const fileItems = document.getElementById('fileItems');
+            
+            if (Object.keys(uploadedFiles).length > 0) {
+                fileList.style.display = 'block';
+                fileItems.innerHTML = '';
+                
+                Object.values(uploadedFiles).forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    item.innerHTML = `
+                        <span>${file.name}</span>
+                        <button class="remove-file" onclick="removeFile('${file.name}')">削除</button>
+                    `;
+                    fileItems.appendChild(item);
+                });
+            } else {
+                fileList.style.display = 'none';
+            }
+        }
+
+        function removeFile(fileName) {
+            delete uploadedFiles[fileName];
+            updateFileList();
+            checkFiles();
+        }
+
+        function checkFiles() {
+            const hasRawReview = Object.keys(uploadedFiles).some(name => 
+                name.toLowerCase().includes('raw_review') || name.toLowerCase().includes('review')
+            );
+            
+            if (hasRawReview) {
+                document.getElementById('processBtn').style.display = 'inline-block';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').textContent = '処理準備完了';
+                
+                // Master.xlsxがある場合は読み込む
+                const masterFile = Object.values(uploadedFiles).find(file => 
+                    file.name.toLowerCase().includes('master')
+                );
+                if (masterFile) {
+                    const workbook = XLSX.read(masterFile.data);
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    masterLabels = data.map(row => row[0]).filter(label => label);
+                }
+            } else {
+                document.getElementById('processBtn').style.display = 'none';
+                document.getElementById('status').style.display = 'none';
+            }
+        }
+
+        // 日付解析関数
+        function parseDate(dateStr) {
+            if (!dateStr) return { year: '', month: '', yearMonth: '' };
+            const match = String(dateStr).match(/(\d{4})年(\d{1,2})月/);
+            if (match) {
+                const month = match[2].padStart(2, '0');
+                return {
+                    year: match[1],
+                    month: month,
+                    yearMonth: `${match[1]}年${month}月`
+                };
+            }
+            return { year: '', month: '', yearMonth: '' };
+        }
+
+        // ラベル検出関数
+        function detectLabels(reviewText) {
+            if (!reviewText) return 'その他';
+            const labels = [];
+            const text = String(reviewText);
+            
+            // 食べる・食べない
+            if (text.match(/食べ(てくれ)?な(い|くなって|かった)|食いつ(かな|きが悪)|残[すし]|拒否|口にしない/)) {
+                labels.push('食べない');
+            } else if (text.match(/食べ[るてた]|たべ[るてた]|食いつ[きくい]|完食|美味[しそ]|おいし/)) {
+                labels.push('食べる');
+            }
+            
+            // 吐き戻し・便の改善/悪化
+            if (text.match(/(吐|嘔吐|吐き戻し).{0,10}(減[ったり]|なくなった|しなくなった|改善)|便.{0,10}(良[くい]|改善|調子が良)/)) {
+                labels.push('吐き戻し・便の改善');
+            } else if (text.match(/吐[くいた]|嘔吐|吐き戻[しす]|下痢|げり|便が[緩悪]|うんちが[緩悪]|軟便/) && 
+                      !text.match(/(減[ったり]|なくなった|しなくなった|改善)/)) {
+                labels.push('吐く・便が悪くなる');
+            }
+            
+            // 価格関連
+            if (text.match(/安[いく]|やす[いく]|安価|お得|リーズナブル|コスパ|手頃/)) {
+                labels.push('安い');
+            }
+            if (text.match(/高[いく]|たか[いく]|値上[げが]|値段が上が|価格が上が|高価|高額/)) {
+                labels.push('高い・値上げ');
+            }
+            
+            // その他のラベル
+            if (text.match(/配送|梱包|発送|届[きいく]|とど[きいく]|到着|包装/)) {
+                labels.push('配送・梱包');
+            }
+            if (text.match(/賞味期限|消費期限|期限/)) {
+                labels.push('賞味期限');
+            }
+            if (text.match(/ジッパー|チャック|密封|ジップ|保存.{0,10}(不便|困)/)) {
+                labels.push('ジッパーが欲しい');
+            }
+            
+            return labels.length > 0 ? labels.join(', ') : 'その他';
+        }
+
+        // センチメント分析関数
+        function analyzeSentiment(reviewText) {
+            if (!reviewText) return 'ニュートラル';
+            const text = String(reviewText);
+            let score = 0;
+            
+            // ポジティブ
+            if (text.match(/食べ[るてた](?!な)|美味[しそ]|おいし|満足|良[いく](?!な)|リピート/)) score += 20;
+            if (text.match(/(吐|嘔吐).{0,10}(減|なくなった|改善)|便.{0,10}良/)) score += 30;
+            if (text.match(/安[いく]|やす[いく]|お得|コスパ/)) score += 15;
+            
+            // ネガティブ
+            if (text.match(/食べ(てくれ)?な(い|くなって)|拒否|残[すし]/)) score -= 25;
+            if (text.match(/吐[くいた]|嘔吐|下痢|軟便/) && !text.match(/(減|なくなった|改善)/)) score -= 25;
+            if (text.match(/高[いく]|たか[いく]|値上[げが]|残念|がっかり/)) score -= 20;
+            
+            return score > 10 ? 'ポジティブ' : score < -10 ? 'ネガティブ' : 'ニュートラル';
+        }
+
+        // データ処理メイン関数
+        async function processData() {
+            const statusDiv = document.getElementById('status');
+            const processBtn = document.getElementById('processBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            try {
+                processBtn.disabled = true;
+                statusDiv.textContent = 'ファイルを読み込み中...';
+                
+                // Raw_Review.xlsxを探す
+                const rawReviewFile = Object.values(uploadedFiles).find(file => 
+                    file.name.toLowerCase().includes('raw_review') || file.name.toLowerCase().includes('review')
+                );
+                
+                if (!rawReviewFile) {
+                    throw new Error('レビューデータファイルが見つかりません');
+                }
+                
+                const rawWorkbook = XLSX.read(rawReviewFile.data);
+                const rawSheet = rawWorkbook.Sheets[rawWorkbook.SheetNames[0]];
+                rawData = XLSX.utils.sheet_to_json(rawSheet, { header: 1 });
+                
+                statusDiv.textContent = `データを処理中... (総行数: ${rawData.length - 1})`;
+                
+                // ヘッダー作成
+                const headers = [...rawData[0], 'L列_ラベル', 'M列_年', 'N列_月', 'O列_年月', 'P列_センチメント'];
+                processedData = [headers];
+                
+                // バッチ処理
+                const batchSize = 100;
+                const totalRows = rawData.length - 1;
+                
+                for (let i = 1; i < rawData.length; i++) {
+                    const row = rawData[i];
+                    const reviewDate = row[1];
+                    const reviewText = row[10];
+                    
+                    const dateInfo = parseDate(reviewDate);
+                    const labels = detectLabels(reviewText);
+                    const sentiment = analyzeSentiment(reviewText);
+                    
+                    const newRow = [...row, labels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, sentiment];
+                    processedData.push(newRow);
+                    
+                    // 進捗更新
+                    if (i % batchSize === 0) {
+                        statusDiv.textContent = `処理中... ${i}/${totalRows} (${Math.round(i/totalRows*100)}%)`;
+                        await new Promise(resolve => setTimeout(resolve, 10)); // UIを更新
+                    }
+                }
+                
+                statusDiv.innerHTML = '<span class="success">処理完了！</span>';
+                downloadBtn.disabled = false;
+                
+                // 統計情報の表示
+                showStatistics();
+                showSampleResults();
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="error">エラー: ${error.message}</span>`;
+                processBtn.disabled = false;
+            }
+        }
+
+        // 統計情報を表示
+        function showStatistics() {
+            const statsDiv = document.getElementById('stats');
+            const statsContent = document.getElementById('statsContent');
+            
+            // 年月別集計
+            const yearMonthStats = {};
+            const labelStats = {};
+            const sentimentStats = { 'ポジティブ': 0, 'ネガティブ': 0, 'ニュートラル': 0 };
+            
+            for (let i = 1; i < processedData.length; i++) {
+                const yearMonth = processedData[i][14];
+                const labels = processedData[i][11];
+                const sentiment = processedData[i][15];
+                
+                if (yearMonth) {
+                    yearMonthStats[yearMonth] = (yearMonthStats[yearMonth] || 0) + 1;
+                }
+                
+                // ラベル集計
+                const labelList = labels.split(', ');
+                labelList.forEach(label => {
+                    labelStats[label] = (labelStats[label] || 0) + 1;
+                });
+                
+                // センチメント集計
+                sentimentStats[sentiment] = (sentimentStats[sentiment] || 0) + 1;
+            }
+            
+            let html = '<p><strong>総レビュー数:</strong> ' + (processedData.length - 1) + '</p>';
+            html += '<p><strong>期間:</strong> ' + Object.keys(yearMonthStats).sort()[0] + ' ～ ' + 
+                    Object.keys(yearMonthStats).sort().slice(-1)[0] + '</p>';
+            
+            html += '<p><strong>ラベル別件数:</strong></p><ul>';
+            Object.entries(labelStats).sort((a, b) => b[1] - a[1]).forEach(([label, count]) => {
+                html += `<li>${label}: ${count}件</li>`;
+            });
+            html += '</ul>';
+            
+            html += '<p><strong>センチメント別:</strong></p><ul>';
+            Object.entries(sentimentStats).forEach(([sentiment, count]) => {
+                const percentage = ((count / (processedData.length - 1)) * 100).toFixed(1);
+                html += `<li>${sentiment}: ${count}件 (${percentage}%)</li>`;
+            });
+            html += '</ul>';
+            
+            statsContent.innerHTML = html;
+            statsDiv.style.display = 'block';
+        }
+
+        // サンプル結果を表示
+        function showSampleResults() {
+            const sampleDiv = document.getElementById('sampleResults');
+            const sampleContent = document.getElementById('sampleContent');
+            
+            let html = '';
+            for (let i = 1; i <= 5 && i < processedData.length; i++) {
+                const row = processedData[i];
+                html += `<div class="result-item">
+                    <strong>レビュー:</strong> ${String(row[10]).substring(0, 100)}...<br>
+                    <strong>ラベル:</strong> ${row[11]}<br>
+                    <strong>年月:</strong> ${row[14]}<br>
+                    <strong>センチメント:</strong> ${row[15]}
+                </div>`;
+            }
+            
+            sampleContent.innerHTML = html;
+            sampleDiv.style.display = 'block';
+        }
+
+        // Excelファイルをダウンロード
+        function downloadExcel() {
+            if (!processedData) return;
+            
+            // シート1: 処理済みデータ
+            const wb = XLSX.utils.book_new();
+            const ws1 = XLSX.utils.aoa_to_sheet(processedData);
+            XLSX.utils.book_append_sheet(wb, ws1, 'レビューデータ');
+            
+            // シート2: 統計データを作成
+            const statsData = createStatisticsSheet();
+            const ws2 = XLSX.utils.aoa_to_sheet(statsData);
+            XLSX.utils.book_append_sheet(wb, ws2, '統計分析');
+            
+            // ファイルをダウンロード
+            XLSX.writeFile(wb, 'ペットフードレビュー分析結果.xlsx');
+        }
+
+        // 統計シートを作成
+        function createStatisticsSheet() {
+            const statsData = [['ペットフードレビュー分析結果']];
+            statsData.push([]);
+            
+            // 年月別集計を作成
+            const yearMonthLabelCounts = {};
+            const allLabels = new Set();
+            const allYearMonths = new Set();
+            
+            for (let i = 1; i < processedData.length; i++) {
+                const yearMonth = processedData[i][14];
+                const labels = processedData[i][11];
+                
+                if (yearMonth) {
+                    allYearMonths.add(yearMonth);
+                    if (!yearMonthLabelCounts[yearMonth]) {
+                        yearMonthLabelCounts[yearMonth] = {};
+                    }
+                    
+                    const labelList = labels.split(', ');
+                    labelList.forEach(label => {
+                        allLabels.add(label);
+                        yearMonthLabelCounts[yearMonth][label] = 
+                            (yearMonthLabelCounts[yearMonth][label] || 0) + 1;
+                    });
+                }
+            }
+            
+            // 年月ごとの実数推移
+            statsData.push(['年月ごとの実数推移']);
+            const sortedYearMonths = Array.from(allYearMonths).sort();
+            const sortedLabels = Array.from(allLabels).sort();
+            
+            const headerRow = ['ラベル', ...sortedYearMonths];
+            statsData.push(headerRow);
+            
+            sortedLabels.forEach(label => {
+                const row = [label];
+                sortedYearMonths.forEach(ym => {
+                    row.push(yearMonthLabelCounts[ym][label] || 0);
+                });
+                statsData.push(row);
+            });
+            
+            return statsData;
+        }
+    </script>
+</body>
+</html>
