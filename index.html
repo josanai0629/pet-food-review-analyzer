@@ -88,6 +88,13 @@
             background-color: #f8f9fa;
             border-radius: 5px;
         }
+        .sentiment-summary {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e3f2fd;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+        }
         .sample-results {
             margin: 20px 0;
             padding: 15px;
@@ -176,6 +183,11 @@
             <div id="statsContent"></div>
         </div>
 
+        <div id="sentimentSummary" class="sentiment-summary" style="display: none;">
+            <h3>センチメント分析サマリー</h3>
+            <div id="sentimentContent"></div>
+        </div>
+
         <div id="sampleResults" class="sample-results" style="display: none;">
             <h3>処理結果サンプル</h3>
             <div id="sampleContent"></div>
@@ -190,6 +202,7 @@
             '配送・梱包', '高い・値上げ', '吐く・便が悪くなる', '賞味期限', 'ジッパーが欲しい'
         ];
         let uploadedFiles = {};
+        let sentimentDataList = [];
 
         // ドラッグ&ドロップの設定
         const uploadArea = document.getElementById('uploadArea');
@@ -304,47 +317,54 @@
             return { year: '', month: '', yearMonth: '', quarter: '' };
         }
 
-        // 改良されたラベル検出関数（より詳細なパターンマッチング）
+        // 改良されたラベル検出関数（K列の実データに基づく改善版）
         function detectLabels(reviewText) {
             if (!reviewText) return 'その他';
-            const labels = [];
             const text = String(reviewText).toLowerCase();
             
-            // 食べる・食べない（改良版）
-            if (text.match(/食べ(てくれ)?な(い|くなって|かった|くて)|食いつ(かな|きが悪|かず)|残[すしちり]|拒否|口にしない|見向きもしない|匂いを嗅いだだけ/)) {
-                labels.push('食べない');
-            } else if (text.match(/食べ[るてたり]|たべ[るてたり]|食いつ[きくいがよ]|完食|美味[しそ]|おいし|喜んで食べ|バクバク|ペロリ|がっつ[きく]|夢中/)) {
-                labels.push('食べる');
+            // 優先順位の高い特定パターンのチェック
+            
+            // 1. 配送・梱包関連
+            if (text.match(/配送|梱包|発送|届[きいくけ]|とど[きいくけ]|到着|包装|配達|宅配|荷物|箱|段ボール|ダンボール/)) {
+                return '配送・梱包';
             }
             
-            // 吐き戻し・便の改善/悪化（改良版）
-            if (text.match(/(吐|はく|嘔吐|吐き戻し).{0,20}(減[ったり]|なくなった|しなくなった|改善|良くなった|減少)|便.{0,20}(良[くい]|改善|調子が良|快調|しっかり)|うんち.{0,20}(良[くい]|改善)|毛玉.{0,20}(減[ったり]|なくなった)/)) {
-                labels.push('吐き戻し・便の改善');
-            } else if (text.match(/吐[くいたき]|はく|嘔吐|吐き戻[しすり]|下痢|げり|便が[緩悪]|うんち.{0,10}[緩悪]|軟便|血便|便秘|べんぴ/) && 
-                      !text.match(/(減[ったり]|なくなった|しなくなった|改善|良くなった)/)) {
-                labels.push('吐く・便が悪くなる');
+            // 2. 価格関連（値上がり/高いの判定を先に）
+            if (text.match(/値上[げがり]|値段.{0,5}上が|価格.{0,5}上が|高くな[っり]|値段.{0,5}高[いくめ]|高価|高額|高すぎ|たか[いく]|高い/)) {
+                return '高い・値上げ';
+            }
+            if (text.match(/安[いくめ]|やす[いくめ]|安価|お得|リーズナブル|コスパ|手頃|手ごろ|低価格|割安|お買い得/)) {
+                return '安い';
             }
             
-            // 価格関連（改良版）
-            if (text.match(/安[いく]|やす[いく]|安価|お得|リーズナブル|コスパ|手頃|手ごろ|低価格|割安|お買い得/)) {
-                labels.push('安い');
-            }
-            if (text.match(/高[いく]|たか[いく]|値上[げが]|値段が上が|価格が上が|高価|高額|高め|割高|値上がり/)) {
-                labels.push('高い・値上げ');
+            // 3. 賞味期限
+            if (text.match(/賞味期限|消費期限|期限|日付|使用期限|有効期限/)) {
+                return '賞味期限';
             }
             
-            // その他のラベル（改良版）
-            if (text.match(/配送|梱包|発送|届[きいく]|とど[きいく]|到着|包装|配達|宅配|荷物/)) {
-                labels.push('配送・梱包');
-            }
-            if (text.match(/賞味期限|消費期限|期限|日付|使用期限/)) {
-                labels.push('賞味期限');
-            }
-            if (text.match(/ジッパー|チャック|密封|ジップ|保存.{0,10}(不便|困|できない)|袋.{0,10}(閉|締)/)) {
-                labels.push('ジッパーが欲しい');
+            // 4. ジッパー
+            if (text.match(/ジッパー|チャック|密封|ジップ|保存.{0,10}(不便|困|できない)|袋.{0,10}(閉|締)|ファスナー/)) {
+                return 'ジッパーが欲しい';
             }
             
-            return labels.length > 0 ? labels.join(', ') : 'その他';
+            // 5. 吐く・便関連（改善と悪化を明確に区別）
+            if (text.match(/(吐|はく|嘔吐|吐き戻し).{0,20}(減[ったり]|なくな[ったり]|しなくな[ったり]|改善|良くな[ったり]|減少|治[ったまり])|便.{0,20}(良[くいか]な[ったり]|改善|調子が良|快調|しっかり|正常)|うんち.{0,20}(良[くいか]な[ったり]|改善|しっかり)|毛玉.{0,20}(減[ったり]|なくな[ったり]|少な[くい])/)) {
+                return '吐き戻し・便の改善';
+            }
+            if (text.match(/吐[くいたきけ]|はく|嘔吐|吐き戻[しすり]|もど[すし]|下痢|げり|便.{0,5}[緩悪臭]|うんち.{0,10}[緩悪臭]|軟便|血便|便秘|べんぴ/) && 
+                !text.match(/(減[ったり]|なくな[ったり]|しなくな[ったり]|改善|良くな[ったり])/)) {
+                return '吐く・便が悪くなる';
+            }
+            
+            // 6. 食べる・食べない（最後に判定）
+            if (text.match(/食べ(てくれ)?な[いかくけ]|食べ.{0,5}くれな[いかくけ]|食いつ[かきく].{0,5}(悪|ない|ダメ)|残[すしちり]|拒否|口にしない|見向きもしない|匂いを嗅[いぐ]だだけ|そっぽ|興味.{0,5}示さな/)) {
+                return '食べない';
+            }
+            if (text.match(/食べ[るてたり]|たべ[るてたり]|食いつ[きくいが].{0,5}(良|いい|よ[いくか])|完食|美味[しそ]|おいし|喜んで.{0,5}食べ|バクバク|ペロリ|がっつ[きくい]|夢中|よく食べ|大好き|お気に入り/)) {
+                return '食べる';
+            }
+            
+            return 'その他';
         }
 
         // 改良されたセンチメント分析関数
@@ -362,41 +382,41 @@
             const reasons = [];
             
             // ポジティブ要素の検出
-            if (text.match(/食べ[るてたり](?!な)|美味[しそ]|おいし|喜んで|バクバク|完食/)) {
+            if (text.match(/食べ[るてたり](?!な)|美味[しそ]|おいし|喜んで|バクバク|完食|よく食べ|大好き/)) {
                 score += 15;
                 reasons.push('食いつきが良い');
             }
-            if (text.match(/満足|良[いく](?!な)|気に入|お気に入り|リピート|また買|定番/)) {
+            if (text.match(/満足|良[いくかけ](?!な)|気に入|お気に入り|リピート|また買|定番|ずっと/)) {
                 score += 10;
                 reasons.push('満足度が高い');
             }
-            if (text.match(/(吐|嘔吐).{0,20}(減|なくなった|改善)|便.{0,20}良|健康/)) {
+            if (text.match(/(吐|嘔吐).{0,20}(減|なくなった|改善)|便.{0,20}良|健康|元気|調子.{0,5}良/)) {
                 score += 15;
                 reasons.push('健康面での改善');
             }
-            if (text.match(/安[いく]|やす[いく]|お得|コスパ/)) {
+            if (text.match(/安[いくめ]|やす[いくめ]|お得|コスパ|手頃/)) {
                 score += 10;
                 reasons.push('価格満足度が高い');
             }
-            if (text.match(/毛並み.{0,10}(良|綺麗|ツヤ)|毛艶/)) {
+            if (text.match(/毛並み.{0,10}(良|綺麗|ツヤ|サラサラ)|毛艶|毛.{0,5}ツヤツヤ/)) {
                 score += 10;
                 reasons.push('毛並みの改善');
             }
             
             // ネガティブ要素の検出
-            if (text.match(/食べ(てくれ)?な(い|くなって)|拒否|残[すし]/)) {
+            if (text.match(/食べ(てくれ)?な[いかくけ]|拒否|残[すし]/)) {
                 score -= 20;
                 reasons.push('食いつきが悪い');
             }
-            if (text.match(/吐[くいた]|嘔吐|下痢|軟便/) && !text.match(/(減|なくなった|改善)/)) {
+            if (text.match(/吐[くいたけ]|嘔吐|下痢|軟便|便.{0,5}悪/) && !text.match(/(減|なくなった|改善)/)) {
                 score -= 15;
                 reasons.push('体調不良の発生');
             }
-            if (text.match(/高[いく]|たか[いく]|値上[げが]/)) {
+            if (text.match(/高[いくめ]|たか[いくめ]|値上[げがり]/)) {
                 score -= 10;
                 reasons.push('価格への不満');
             }
-            if (text.match(/残念|がっかり|期待はずれ|ダメ|最悪|二度と/)) {
+            if (text.match(/残念|がっかり|期待はずれ|ダメ|最悪|二度と|もう買わない/)) {
                 score -= 15;
                 reasons.push('期待との乖離');
             }
@@ -424,27 +444,51 @@
             };
         }
 
-        // センチメントサマリープロンプト
-        function generateSentimentSummary(sentimentData) {
-            const positive = sentimentData.filter(s => s.label === 'ポジティブ').length;
-            const negative = sentimentData.filter(s => s.label === 'ネガティブ').length;
-            const neutral = sentimentData.filter(s => s.label === 'ニュートラル').length;
-            const total = sentimentData.length;
+        // センチメント分析サマリーの生成と表示
+        function generateAndShowSentimentSummary() {
+            const positive = sentimentDataList.filter(s => s.label === 'ポジティブ').length;
+            const negative = sentimentDataList.filter(s => s.label === 'ネガティブ').length;
+            const neutral = sentimentDataList.filter(s => s.label === 'ニュートラル').length;
+            const total = sentimentDataList.length;
             
-            const summary = `
-センチメント分析サマリー:
-- 総レビュー数: ${total}件
-- ポジティブ: ${positive}件 (${(positive/total*100).toFixed(1)}%)
-- ネガティブ: ${negative}件 (${(negative/total*100).toFixed(1)}%)
-- ニュートラル: ${neutral}件 (${(neutral/total*100).toFixed(1)}%)
-
-主な傾向:
-${positive > negative * 2 ? '全体的に好評価が多く、製品に対する満足度が高い傾向にあります。' : ''}
-${negative > positive * 2 ? '改善が必要な点が多く見受けられます。' : ''}
-${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、個体差や好みの違いが大きいようです。' : ''}
+            let summaryHTML = `
+                <p><strong>総レビュー数:</strong> ${total}件</p>
+                <p><strong>ポジティブ:</strong> ${positive}件 (${(positive/total*100).toFixed(1)}%)</p>
+                <p><strong>ネガティブ:</strong> ${negative}件 (${(negative/total*100).toFixed(1)}%)</p>
+                <p><strong>ニュートラル:</strong> ${neutral}件 (${(neutral/total*100).toFixed(1)}%)</p>
+                <h4>主な傾向:</h4>
+                <ul>
             `;
             
-            return summary;
+            if (positive > negative * 2) {
+                summaryHTML += '<li>全体的に好評価が多く、製品に対する満足度が高い傾向にあります。</li>';
+            }
+            if (negative > positive * 2) {
+                summaryHTML += '<li>改善が必要な点が多く見受けられます。</li>';
+            }
+            if (Math.abs(positive - negative) < total * 0.1) {
+                summaryHTML += '<li>評価が分かれており、個体差や好みの違いが大きいようです。</li>';
+            }
+            
+            // 主なポジティブ要因の分析
+            const positiveReasons = {};
+            sentimentDataList.filter(s => s.label === 'ポジティブ').forEach(s => {
+                if (s.reason.includes('食いつきが良い')) positiveReasons['食いつき'] = (positiveReasons['食いつき'] || 0) + 1;
+                if (s.reason.includes('健康面での改善')) positiveReasons['健康改善'] = (positiveReasons['健康改善'] || 0) + 1;
+                if (s.reason.includes('価格満足度')) positiveReasons['価格'] = (positiveReasons['価格'] || 0) + 1;
+            });
+            
+            if (Object.keys(positiveReasons).length > 0) {
+                summaryHTML += '<li>ポジティブ評価の主な要因：';
+                const topReasons = Object.entries(positiveReasons).sort((a, b) => b[1] - a[1]).slice(0, 3);
+                summaryHTML += topReasons.map(([reason, count]) => `${reason}(${count}件)`).join('、');
+                summaryHTML += '</li>';
+            }
+            
+            summaryHTML += '</ul>';
+            
+            document.getElementById('sentimentContent').innerHTML = summaryHTML;
+            document.getElementById('sentimentSummary').style.display = 'block';
         }
 
         // データ処理メイン関数
@@ -476,8 +520,8 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                 const headers = [...rawData[0], 'L列_ラベル', 'M列_年', 'N列_月', 'O列_年月', 'P列_センチメント', 'Q列_クォーター'];
                 processedData = [headers];
                 
-                // センチメントデータを保存
-                const sentimentDataList = [];
+                // センチメントデータをリセット
+                sentimentDataList = [];
                 
                 // バッチ処理
                 const batchSize = 100;
@@ -485,8 +529,8 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                 
                 for (let i = 1; i < rawData.length; i++) {
                     const row = rawData[i];
-                    const reviewDate = row[1];
-                    const reviewText = row[10];
+                    const reviewDate = row[0]; // A列
+                    const reviewText = row[9]; // J列
                     
                     const dateInfo = parseDate(reviewDate);
                     const labels = detectLabels(reviewText);
@@ -511,6 +555,9 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                 
                 // 統計情報の表示
                 showStatistics();
+                // センチメントサマリーの表示
+                generateAndShowSentimentSummary();
+                // サンプル結果の表示
                 showSampleResults();
                 
             } catch (error) {
@@ -527,28 +574,18 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             // 年月別集計
             const yearMonthStats = {};
             const labelStats = {};
-            const sentimentStats = { 'ポジティブ': 0, 'ネガティブ': 0, 'ニュートラル': 0 };
             
             for (let i = 1; i < processedData.length; i++) {
-                const yearMonth = processedData[i][14];
-                const labels = processedData[i][11];
-                const sentiment = processedData[i][15];
+                const yearMonth = processedData[i][14]; // O列
+                const labels = processedData[i][11]; // L列
                 
                 if (yearMonth) {
                     yearMonthStats[yearMonth] = (yearMonthStats[yearMonth] || 0) + 1;
                 }
                 
-                // ラベル集計
-                const labelList = labels.split(', ');
-                labelList.forEach(label => {
-                    labelStats[label] = (labelStats[label] || 0) + 1;
-                });
-                
-                // センチメント集計（センチメントフォーマットから抽出）
-                const sentimentMatch = sentiment.match(/ラベル: (\w+)/);
-                if (sentimentMatch) {
-                    const sentimentLabel = sentimentMatch[1];
-                    sentimentStats[sentimentLabel] = (sentimentStats[sentimentLabel] || 0) + 1;
+                // ラベル集計（単一ラベルとして扱う）
+                if (labels) {
+                    labelStats[labels] = (labelStats[labels] || 0) + 1;
                 }
             }
             
@@ -559,13 +596,6 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             html += '<p><strong>ラベル別件数:</strong></p><ul>';
             Object.entries(labelStats).sort((a, b) => b[1] - a[1]).forEach(([label, count]) => {
                 html += `<li>${label}: ${count}件</li>`;
-            });
-            html += '</ul>';
-            
-            html += '<p><strong>センチメント別:</strong></p><ul>';
-            Object.entries(sentimentStats).forEach(([sentiment, count]) => {
-                const percentage = ((count / (processedData.length - 1)) * 100).toFixed(1);
-                html += `<li>${sentiment}: ${count}件 (${percentage}%)</li>`;
             });
             html += '</ul>';
             
@@ -583,7 +613,7 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                 const row = processedData[i];
                 const sentimentLines = row[15].split('\n');
                 html += `<div class="result-item">
-                    <strong>レビュー:</strong> ${String(row[10]).substring(0, 100)}...<br>
+                    <strong>レビュー:</strong> ${String(row[9]).substring(0, 100)}...<br>
                     <strong>ラベル:</strong> ${row[11]}<br>
                     <strong>年月:</strong> ${row[14]}<br>
                     <strong>センチメント分析:</strong><br>
@@ -609,13 +639,18 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             const ws2 = XLSX.utils.aoa_to_sheet(statsData);
             XLSX.utils.book_append_sheet(wb, ws2, '統計分析');
             
+            // シート3: センチメントサマリー
+            const sentimentSummaryData = createSentimentSummarySheet();
+            const ws3 = XLSX.utils.aoa_to_sheet(sentimentSummaryData);
+            XLSX.utils.book_append_sheet(wb, ws3, 'センチメント分析');
+            
             // ファイルをダウンロード
             XLSX.writeFile(wb, 'ペットフードレビュー分析結果.xlsx');
         }
 
         // 統計シートを作成（3つの表を含む）
         function createStatisticsSheet() {
-            const statsData = [['ペットフードレビュー分析結果']];
+            const statsData = [['ペットフードレビュー分析結果 - 統計分析']];
             statsData.push([]);
             
             // データ集計の準備
@@ -623,17 +658,17 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             const quarterLabelCounts = {};
             const yearMonthTotals = {};
             const quarterTotals = {};
-            const allLabels = new Set();
+            const allLabels = new Set(masterLabels); // マスターラベルを使用
             const allYearMonths = new Set();
             const allQuarters = new Set();
             
             // データ集計
             for (let i = 1; i < processedData.length; i++) {
-                const yearMonth = processedData[i][14];
-                const quarter = processedData[i][16];
-                const labels = processedData[i][11];
+                const yearMonth = processedData[i][14]; // O列
+                const quarter = processedData[i][16]; // Q列
+                const label = processedData[i][11]; // L列（単一ラベル）
                 
-                if (yearMonth) {
+                if (yearMonth && label) {
                     allYearMonths.add(yearMonth);
                     yearMonthTotals[yearMonth] = (yearMonthTotals[yearMonth] || 0) + 1;
                     
@@ -641,15 +676,11 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                         yearMonthLabelCounts[yearMonth] = {};
                     }
                     
-                    const labelList = labels.split(', ');
-                    labelList.forEach(label => {
-                        allLabels.add(label);
-                        yearMonthLabelCounts[yearMonth][label] = 
-                            (yearMonthLabelCounts[yearMonth][label] || 0) + 1;
-                    });
+                    yearMonthLabelCounts[yearMonth][label] = 
+                        (yearMonthLabelCounts[yearMonth][label] || 0) + 1;
                 }
                 
-                if (quarter) {
+                if (quarter && label) {
                     allQuarters.add(quarter);
                     quarterTotals[quarter] = (quarterTotals[quarter] || 0) + 1;
                     
@@ -657,26 +688,23 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                         quarterLabelCounts[quarter] = {};
                     }
                     
-                    const labelList = labels.split(', ');
-                    labelList.forEach(label => {
-                        quarterLabelCounts[quarter][label] = 
-                            (quarterLabelCounts[quarter][label] || 0) + 1;
-                    });
+                    quarterLabelCounts[quarter][label] = 
+                        (quarterLabelCounts[quarter][label] || 0) + 1;
                 }
             }
             
             const sortedYearMonths = Array.from(allYearMonths).sort();
             const sortedQuarters = Array.from(allQuarters).sort();
-            const sortedLabels = Array.from(allLabels).sort();
+            const sortedLabels = Array.from(allLabels);
             
-            // 1. 年月ごとの実数推移
-            statsData.push(['1. 年月ごとの実数推移']);
+            // 表1: 年月ごとの実数推移
+            statsData.push(['【表1】年月ごとの実数推移']);
             statsData.push(['ラベル', ...sortedYearMonths]);
             
             sortedLabels.forEach(label => {
                 const row = [label];
                 sortedYearMonths.forEach(ym => {
-                    row.push(yearMonthLabelCounts[ym][label] || 0);
+                    row.push(yearMonthLabelCounts[ym] && yearMonthLabelCounts[ym][label] ? yearMonthLabelCounts[ym][label] : 0);
                 });
                 statsData.push(row);
             });
@@ -688,18 +716,18 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             });
             statsData.push(totalRow);
             
-            // 空行
+            // 空行で区切り
             statsData.push([]);
             statsData.push([]);
             
-            // 2. 年月ごとの割合推移
-            statsData.push(['2. 年月ごとの割合推移（%）']);
+            // 表2: 年月ごとの割合推移
+            statsData.push(['【表2】年月ごとの割合推移（%）']);
             statsData.push(['ラベル', ...sortedYearMonths]);
             
             sortedLabels.forEach(label => {
                 const row = [label];
                 sortedYearMonths.forEach(ym => {
-                    const count = yearMonthLabelCounts[ym][label] || 0;
+                    const count = yearMonthLabelCounts[ym] && yearMonthLabelCounts[ym][label] ? yearMonthLabelCounts[ym][label] : 0;
                     const total = yearMonthTotals[ym] || 1;
                     const percentage = ((count / total) * 100).toFixed(1);
                     row.push(percentage + '%');
@@ -707,19 +735,19 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
                 statsData.push(row);
             });
             
-            // 空行
+            // 空行で区切り
             statsData.push([]);
             statsData.push([]);
             
-            // 3. クォーターごとのまとめ（実数と割合）
-            statsData.push(['3. クォーターごとのまとめ']);
+            // 表3: クォーターごとのまとめ
+            statsData.push(['【表3】クォーターごとのまとめ']);
             
             // 実数部分
             statsData.push(['ラベル（実数）', ...sortedQuarters]);
             sortedLabels.forEach(label => {
                 const row = [label];
                 sortedQuarters.forEach(q => {
-                    row.push(quarterLabelCounts[q][label] || 0);
+                    row.push(quarterLabelCounts[q] && quarterLabelCounts[q][label] ? quarterLabelCounts[q][label] : 0);
                 });
                 statsData.push(row);
             });
@@ -738,7 +766,7 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             sortedLabels.forEach(label => {
                 const row = [label];
                 sortedQuarters.forEach(q => {
-                    const count = quarterLabelCounts[q][label] || 0;
+                    const count = quarterLabelCounts[q] && quarterLabelCounts[q][label] ? quarterLabelCounts[q][label] : 0;
                     const total = quarterTotals[q] || 1;
                     const percentage = ((count / total) * 100).toFixed(1);
                     row.push(percentage + '%');
@@ -747,6 +775,75 @@ ${Math.abs(positive - negative) < total * 0.1 ? '評価が分かれており、�
             });
             
             return statsData;
+        }
+
+        // センチメントサマリーシートを作成
+        function createSentimentSummarySheet() {
+            const summaryData = [['センチメント分析サマリー']];
+            summaryData.push([]);
+            
+            const positive = sentimentDataList.filter(s => s.label === 'ポジティブ').length;
+            const negative = sentimentDataList.filter(s => s.label === 'ネガティブ').length;
+            const neutral = sentimentDataList.filter(s => s.label === 'ニュートラル').length;
+            const total = sentimentDataList.length;
+            
+            summaryData.push(['項目', '件数', '割合']);
+            summaryData.push(['総レビュー数', total, '100.0%']);
+            summaryData.push(['ポジティブ', positive, `${(positive/total*100).toFixed(1)}%`]);
+            summaryData.push(['ネガティブ', negative, `${(negative/total*100).toFixed(1)}%`]);
+            summaryData.push(['ニュートラル', neutral, `${(neutral/total*100).toFixed(1)}%`]);
+            
+            summaryData.push([]);
+            summaryData.push(['主な傾向']);
+            
+            if (positive > negative * 2) {
+                summaryData.push(['全体的に好評価が多く、製品に対する満足度が高い傾向にあります。']);
+            }
+            if (negative > positive * 2) {
+                summaryData.push(['改善が必要な点が多く見受けられます。']);
+            }
+            if (Math.abs(positive - negative) < total * 0.1) {
+                summaryData.push(['評価が分かれており、個体差や好みの違いが大きいようです。']);
+            }
+            
+            // 月別センチメント推移
+            summaryData.push([]);
+            summaryData.push(['月別センチメント推移']);
+            
+            const monthSentiment = {};
+            for (let i = 1; i < processedData.length; i++) {
+                const yearMonth = processedData[i][14];
+                const sentiment = processedData[i][15];
+                
+                if (yearMonth && sentiment) {
+                    if (!monthSentiment[yearMonth]) {
+                        monthSentiment[yearMonth] = {
+                            'ポジティブ': 0,
+                            'ネガティブ': 0,
+                            'ニュートラル': 0
+                        };
+                    }
+                    
+                    const sentimentMatch = sentiment.match(/ラベル: (\w+)/);
+                    if (sentimentMatch) {
+                        monthSentiment[yearMonth][sentimentMatch[1]]++;
+                    }
+                }
+            }
+            
+            const sortedMonths = Object.keys(monthSentiment).sort();
+            summaryData.push(['年月', 'ポジティブ', 'ネガティブ', 'ニュートラル']);
+            
+            sortedMonths.forEach(month => {
+                summaryData.push([
+                    month,
+                    monthSentiment[month]['ポジティブ'],
+                    monthSentiment[month]['ネガティブ'],
+                    monthSentiment[month]['ニュートラル']
+                ]);
+            });
+            
+            return summaryData;
         }
     </script>
 </body>
