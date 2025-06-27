@@ -1,0 +1,30 @@
+{
+  "name": "pet-food-review-analyzer",
+  "version": "1.0.0",
+  "description": "ペットフードレビュー分析ツール - ECレビューのセンチメント分析とラベリングを自動化",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve -p 3000"
+  },
+  "keywords": [
+    "pet-food",
+    "review-analysis",
+    "sentiment-analysis",
+    "excel",
+    "japanese"
+  ],
+  "author": "josanai0629",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/josanai0629/pet-food-review-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/josanai0629/pet-food-review-analyzer/issues"
+  },
+  "homepage": "https://github.com/josanai0629/pet-food-review-analyzer#readme",
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
