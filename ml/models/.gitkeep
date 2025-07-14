@@ -1,0 +1,28 @@
+# このファイルは空のディレクトリをGitで管理するためのプレースホルダーです
+# 学習済みモデルがここに保存されます
+
+## ディレクトリ構造
+
+```
+models/
+├── model/              # BERTモデル本体
+├── tokenizer/          # トークナイザー
+└── label_encoder.pkl   # ラベルエンコーダー
+```
+
+## 使用方法
+
+モデル学習後、以下のファイルが自動生成されます：
+
+- `model/` - 学習済みBERTモデル
+- `tokenizer/` - 学習済みトークナイザー  
+- `label_encoder.pkl` - ラベルエンコーダー
+
+これらのファイルを使って、学習済みモデルを読み込むことができます。
+
+```python
+from bert_classifier import BERTClassifier
+
+classifier = BERTClassifier()
+classifier.load_saved_model("./models/")
+```
