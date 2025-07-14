@@ -146,6 +146,13 @@
         .remove-file:hover {
             background-color: #d32f2f;
         }
+        .debug-button {
+            background-color: #ff9800;
+            margin-left: 10px;
+        }
+        .debug-button:hover {
+            background-color: #f57c00;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -175,6 +182,7 @@
 
         <div style="text-align: center;">
             <button onclick="processData()" id="processBtn" style="display: none;">データ処理を開始</button>
+            <button onclick="debugDateData()" id="debugBtn" class="debug-button" style="display: none;">日付データをデバッグ</button>
             <button onclick="downloadExcel()" id="downloadBtn" disabled>Excelファイルをダウンロード</button>
         </div>
 
@@ -279,6 +287,7 @@
             
             if (hasRawReview) {
                 document.getElementById('processBtn').style.display = 'inline-block';
+                document.getElementById('debugBtn').style.display = 'inline-block';
                 document.getElementById('status').style.display = 'block';
                 document.getElementById('status').textContent = '処理準備完了';
                 
@@ -294,27 +303,99 @@
                 }
             } else {
                 document.getElementById('processBtn').style.display = 'none';
+                document.getElementById('debugBtn').style.display = 'none';
                 document.getElementById('status').style.display = 'none';
             }
         }
 
-        // 日付解析関数
+        // 修正された日付解析関数
         function parseDate(dateStr) {
             if (!dateStr) return { year: '', month: '', yearMonth: '', quarter: '' };
-            const match = String(dateStr).match(/(\d{4})年(\d{1,2})月/);
-            if (match) {
-                const year = match[1];
-                const month = match[2].padStart(2, '0');
+            
+            console.log('入力された日付データ:', dateStr, 'タイプ:', typeof dateStr);
+            
+            let date = null;
+            
+            // 1. Excelシリアル値の場合（数値で25569以上の値）
+            if (typeof dateStr === 'number' && dateStr > 25569) { // 1970/1/1以降
+                // Excelシリアル値をJavaScript日付に変換
+                // Excelは1900/1/1を1とするが、JavaScriptは1970/1/1が基準
+                const excelEpoch = new Date(1899, 11, 30); // 1899/12/30
+                date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
+            }
+            // 2. 「2024年1月」形式
+            else if (typeof dateStr === 'string') {
+                const yearMonthMatch = dateStr.match(/(\d{4})年(\d{1,2})月/);
+                if (yearMonthMatch) {
+                    const year = parseInt(yearMonthMatch[1]);
+                    const month = parseInt(yearMonthMatch[2]);
+                    date = new Date(year, month - 1, 1);
+                }
+                // 3. 「2024/1/15」「2024-01-15」などの一般的な形式
+                else {
+                    // 文字列を標準的な日付として解析を試行
+                    const normalizedDate = dateStr.replace(/[年月日]/g, '/').replace(/-/g, '/');
+                    const testDate = new Date(normalizedDate);
+                    if (!isNaN(testDate.getTime())) {
+                        date = testDate;
+                    }
+                }
+            }
+            
+            // 日付オブジェクトが有効な場合の処理
+            if (date && !isNaN(date.getTime())) {
+                const year = date.getFullYear().toString();
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
                 const monthNum = parseInt(month);
                 const quarter = `${year}Q${Math.ceil(monthNum / 3)}`;
-                return {
+                
+                const result = {
                     year: year,
                     month: month,
                     yearMonth: `${year}年${month}月`,
                     quarter: quarter
                 };
+                
+                console.log('解析結果:', result);
+                return result;
             }
+            
+            console.log('日付解析失敗:', dateStr);
             return { year: '', month: '', yearMonth: '', quarter: '' };
+        }
+
+        // デバッグ用の関数
+        function debugDateData() {
+            if (!rawData || rawData.length < 2) {
+                const rawReviewFile = Object.values(uploadedFiles).find(file => 
+                    file.name.toLowerCase().includes('raw_review') || file.name.toLowerCase().includes('review')
+                );
+                
+                if (!rawReviewFile) {
+                    alert('レビューデータファイルが見つかりません');
+                    return;
+                }
+                
+                const rawWorkbook = XLSX.read(rawReviewFile.data);
+                const rawSheet = rawWorkbook.Sheets[rawWorkbook.SheetNames[0]];
+                rawData = XLSX.utils.sheet_to_json(rawSheet, { header: 1 });
+            }
+            
+            console.log('=== 日付データのデバッグ情報 ===');
+            console.log('ヘッダー:', rawData[0]);
+            
+            // 最初の10行のB列データを確認
+            for (let i = 1; i <= Math.min(10, rawData.length - 1); i++) {
+                const dateValue = rawData[i][1]; // B列
+                console.log(`${i}行目 B列:`, dateValue, 'タイプ:', typeof dateValue);
+                
+                if (dateValue) {
+                    const parsed = parseDate(dateValue);
+                    console.log(`  → 解析結果:`, parsed);
+                }
+            }
+            
+            alert('コンソールを確認してください。F12を押してConsoleタブを見てください。');
         }
 
         // 改良されたラベル検出関数（K列の実データに基づく改善版）
@@ -516,6 +597,11 @@
                 
                 statusDiv.textContent = `データを処理中... (総行数: ${rawData.length - 1})`;
                 
+                // デバッグ: 最初の数行のデータを確認
+                console.log('ヘッダー:', rawData[0]);
+                console.log('1行目データ:', rawData[1]);
+                console.log('2行目データ:', rawData[2]);
+                
                 // ヘッダー作成
                 const headers = [...rawData[0], 'L列_ラベル', 'M列_年', 'N列_月', 'O列_年月', 'P列_センチメント', 'Q列_クォーター'];
                 processedData = [headers];
@@ -529,8 +615,15 @@
                 
                 for (let i = 1; i < rawData.length; i++) {
                     const row = rawData[i];
-                    const reviewDate = row[0]; // A列
-                    const reviewText = row[9]; // J列
+                    
+                    // ★修正: B列（インデックス1）、K列（インデックス10）を参照するように変更
+                    const reviewDate = row[1]; // B列（0ベースなのでインデックス1）
+                    const reviewText = row[10]; // K列（0ベースなのでインデックス10）
+                    
+                    // デバッグ出力（最初の5行のみ）
+                    if (i <= 5) {
+                        console.log(`${i}行目 - 日付:`, reviewDate, 'レビュー:', reviewText?.substring(0, 50));
+                    }
                     
                     const dateInfo = parseDate(reviewDate);
                     const labels = detectLabels(reviewText);
@@ -613,7 +706,7 @@
                 const row = processedData[i];
                 const sentimentLines = row[15].split('\n');
                 html += `<div class="result-item">
-                    <strong>レビュー:</strong> ${String(row[9]).substring(0, 100)}...<br>
+                    <strong>レビュー:</strong> ${String(row[10]).substring(0, 100)}...<br>
                     <strong>ラベル:</strong> ${row[11]}<br>
                     <strong>年月:</strong> ${row[14]}<br>
                     <strong>センチメント分析:</strong><br>
