@@ -1,0 +1,10 @@
+# このファイルは空のディレクトリをGitで管理するためのプレースホルダーです
+# 学習結果・評価結果がここに保存されます
+
+## 保存される内容
+
+- `training_results.json` - 学習結果の詳細
+- `experiment_*.json` - 実験ごとの結果
+- `confusion_matrix.png` - 混同行列
+- `classification_report.txt` - 分類レポート
+- その他の評価結果ファイル
