@@ -1,0 +1,123 @@
+# MLモジュール用 .gitignore
+
+# Python関連
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyTorch関連
+*.pth
+*.pt
+checkpoint*.tar
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# 学習済みモデル（サイズが大きいため）
+models/model/
+models/tokenizer/
+*.bin
+*.safetensors
+
+# 学習データ（機密情報の可能性）
+data/*.xlsx
+data/*.csv
+data/*.json
+data/*.pkl
+data/*.parquet
+
+# ログファイル
+logs/*.log
+logs/*.txt
+
+# 実験結果（大きなファイル）
+results/*.json
+results/*.png
+results/*.jpg
+results/*.svg
+
+# 図表ファイル
+figures/*.png
+figures/*.jpg
+figures/*.svg
+figures/*.pdf
+figures/*.html
+
+# 環境設定
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE設定
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS関連
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 一時ファイル
+*.tmp
+*.temp
+*.cache
+
+# HuggingFace キャッシュ
+.cache/huggingface/
+
+# Transformers キャッシュ
+transformers_cache/
+
+# 実験管理ツール
+mlruns/
+runs/
+wandb/
+
+# 大容量データファイル（100MB以上）
+*.h5
+*.hdf5
+*.npz
+
+# 設定ファイルの個人設定
+config_local.py
+settings_local.py
+
+# テスト関連
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ドキュメント生成
+docs/_build/
