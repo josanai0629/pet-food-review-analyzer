@@ -161,8 +161,118 @@
             font-size: 12px;
             border-left: 4px solid #4CAF50;
         }
+        
+        /* 新機能: 可視化エリアのスタイル */
+        .visualization-container {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        .chart-container {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #333;
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            margin: 10px 0;
+        }
+        .chart-wrapper.small {
+            height: 300px;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .dashboard-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4CAF50;
+            margin: 10px 0;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .filter-controls {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e8f5e9;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .filter-group label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+        }
+        .filter-group select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .trend-indicator {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin-left: 10px;
+        }
+        .trend-up {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+        }
+        .trend-down {
+            background-color: #ffcdd2;
+            color: #d32f2f;
+        }
+        .trend-stable {
+            background-color: #e1f5fe;
+            color: #0277bd;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .filter-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -198,6 +308,102 @@
             <button onclick="processData()" id="processBtn" style="display: none;">データ処理を開始</button>
             <button onclick="debugDateData()" id="debugBtn" class="debug-button" style="display: none;">日付データをデバッグ</button>
             <button onclick="downloadExcel()" id="downloadBtn" disabled>Excelファイルをダウンロード</button>
+            <button onclick="toggleVisualization()" id="visualizeBtn" disabled style="background-color: #2196F3;">📊 可視化表示</button>
+        </div>
+
+        <!-- 新機能: ダッシュボード -->
+        <div id="dashboardSection" class="visualization-container" style="display: none;">
+            <h2>📊 分析ダッシュボード</h2>
+            
+            <!-- フィルター機能 -->
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label>期間フィルター</label>
+                    <select id="periodFilter" onchange="updateCharts()">
+                        <option value="all">全期間</option>
+                        <option value="last3months">直近3ヶ月</option>
+                        <option value="last6months">直近6ヶ月</option>
+                        <option value="thisyear">今年</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>表示ラベル</label>
+                    <select id="labelFilter" onchange="updateCharts()">
+                        <option value="all">全ラベル</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>チャート種別</label>
+                    <select id="chartType" onchange="updateCharts()">
+                        <option value="line">折れ線グラフ</option>
+                        <option value="bar">棒グラフ</option>
+                        <option value="area">面グラフ</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- KPI カード -->
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <div class="metric-label">総レビュー数</div>
+                    <div class="metric-value" id="totalReviews">0</div>
+                    <span id="reviewsTrend" class="trend-indicator"></span>
+                </div>
+                <div class="dashboard-card">
+                    <div class="metric-label">ポジティブ率</div>
+                    <div class="metric-value" id="positiveRate">0%</div>
+                    <span id="positiveTrend" class="trend-indicator"></span>
+                </div>
+                <div class="dashboard-card">
+                    <div class="metric-label">最多ラベル</div>
+                    <div class="metric-value" id="topLabel">-</div>
+                    <span id="topLabelCount" class="trend-indicator"></span>
+                </div>
+                <div class="dashboard-card">
+                    <div class="metric-label">平均スコア</div>
+                    <div class="metric-value" id="avgScore">0</div>
+                    <span id="scoreTrend" class="trend-indicator"></span>
+                </div>
+            </div>
+
+            <!-- チャートエリア -->
+            <div class="chart-container">
+                <div class="chart-title">月別レビュー推移</div>
+                <div class="chart-wrapper">
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="chart-container">
+                    <div class="chart-title">ラベル分布</div>
+                    <div class="chart-wrapper small">
+                        <canvas id="labelDistributionChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">センチメント分析</div>
+                    <div class="chart-wrapper small">
+                        <canvas id="sentimentChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">クォーター別比較</div>
+                <div class="chart-wrapper">
+                    <canvas id="quarterlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ヒートマップ風の表示 -->
+            <div class="chart-container">
+                <div class="chart-title">ラベル×センチメント マトリックス</div>
+                <div id="heatmapContainer" style="overflow-x: auto;">
+                    <table id="heatmapTable" style="width: 100%; border-collapse: collapse;">
+                    </table>
+                </div>
+            </div>
         </div>
 
         <div id="stats" class="stats" style="display: none;">
@@ -223,9 +429,14 @@
             '食べる', '食べない', '吐き戻し・便の改善', 'その他', '安い',
             '配送・梱包', '高い・値上げ', '吐く・便が悪くなる', '賞味期限', 'ジッパーが欲しい'
         ];
-        let labelConfig = []; // 新しいカスタムラベル設定配列
+        let labelConfig = [];
         let uploadedFiles = {};
         let sentimentDataList = [];
+        
+        // 新機能: チャート管理
+        let charts = {};
+        let dashboardVisible = false;
+        let analysisData = {};
 
         // ドラッグ&ドロップの設定
         const uploadArea = document.getElementById('uploadArea');
@@ -306,7 +517,6 @@
                 document.getElementById('status').style.display = 'block';
                 document.getElementById('status').textContent = '処理準備完了';
                 
-                // Master.xlsxがある場合は読み込む（拡張機能対応）
                 const masterFile = Object.values(uploadedFiles).find(file => 
                     file.name.toLowerCase().includes('master')
                 );
@@ -315,30 +525,26 @@
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                     
-                    // 拡張形式のチェック（B列またはC列にデータがあるか）
                     const hasExtendedFormat = data.some(row => row[1] || row[2]);
                     
                     if (hasExtendedFormat) {
-                        // 拡張形式（A列：ラベル名、B列：優先度、C列：パターン）
                         labelConfig = data
-                            .filter(row => row[0]) // A列が空でない行のみ
+                            .filter(row => row[0])
                             .map(row => ({
-                                name: row[0],                    // A列：ラベル名
-                                priority: parseInt(row[1]) || 999, // B列：優先度（未指定は最低優先）
-                                patterns: row[2] ? row[2].split('|').filter(p => p.trim()) : [] // C列：パターン（|区切り）
+                                name: row[0],
+                                priority: parseInt(row[1]) || 999,
+                                patterns: row[2] ? row[2].split('|').filter(p => p.trim()) : []
                             }))
-                            .sort((a, b) => a.priority - b.priority); // 優先度順にソート
+                            .sort((a, b) => a.priority - b.priority);
                         
                         console.log('カスタムラベル設定を読み込みました:', labelConfig);
                         document.getElementById('status').textContent = `処理準備完了（カスタムラベル設定: ${labelConfig.length}件）`;
                     } else {
-                        // 従来形式（A列のみ）
                         labelConfig = [];
                         masterLabels = data.map(row => row[0]).filter(label => label);
                         console.log('従来形式のMaster.xlsxを読み込みました:', masterLabels);
                     }
                 } else {
-                    // Master.xlsxがない場合はデフォルト設定
                     labelConfig = [];
                 }
             } else {
@@ -348,7 +554,6 @@
             }
         }
 
-        // 修正された日付解析関数
         function parseDate(dateStr) {
             if (!dateStr) return { year: '', month: '', yearMonth: '', quarter: '' };
             
@@ -356,14 +561,10 @@
             
             let date = null;
             
-            // 1. Excelシリアル値の場合（数値で25569以上の値）
-            if (typeof dateStr === 'number' && dateStr > 25569) { // 1970/1/1以降
-                // Excelシリアル値をJavaScript日付に変換
-                // Excelは1900/1/1を1とするが、JavaScriptは1970/1/1が基準
-                const excelEpoch = new Date(1899, 11, 30); // 1899/12/30
+            if (typeof dateStr === 'number' && dateStr > 25569) {
+                const excelEpoch = new Date(1899, 11, 30);
                 date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
             }
-            // 2. 「2024年1月」形式
             else if (typeof dateStr === 'string') {
                 const yearMonthMatch = dateStr.match(/(\\d{4})年(\\d{1,2})月/);
                 if (yearMonthMatch) {
@@ -371,9 +572,7 @@
                     const month = parseInt(yearMonthMatch[2]);
                     date = new Date(year, month - 1, 1);
                 }
-                // 3. 「2024/1/15」「2024-01-15」などの一般的な形式
                 else {
-                    // 文字列を標準的な日付として解析を試行
                     const normalizedDate = dateStr.replace(/[年月日]/g, '/').replace(/-/g, '/');
                     const testDate = new Date(normalizedDate);
                     if (!isNaN(testDate.getTime())) {
@@ -382,7 +581,6 @@
                 }
             }
             
-            // 日付オブジェクトが有効な場合の処理
             if (date && !isNaN(date.getTime())) {
                 const year = date.getFullYear().toString();
                 const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -404,7 +602,6 @@
             return { year: '', month: '', yearMonth: '', quarter: '' };
         }
 
-        // デバッグ用の関数
         function debugDateData() {
             if (!rawData || rawData.length < 2) {
                 const rawReviewFile = Object.values(uploadedFiles).find(file => 
@@ -424,9 +621,8 @@
             console.log('=== 日付データのデバッグ情報 ===');
             console.log('ヘッダー:', rawData[0]);
             
-            // 最初の10行のB列データを確認
             for (let i = 1; i <= Math.min(10, rawData.length - 1); i++) {
-                const dateValue = rawData[i][1]; // B列
+                const dateValue = rawData[i][1];
                 console.log(`${i}行目 B列:`, dateValue, 'タイプ:', typeof dateValue);
                 
                 if (dateValue) {
@@ -438,23 +634,20 @@
             alert('コンソールを確認してください。F12を押してConsoleタブを見てください。');
         }
 
-        // カスタムラベル設定による分類関数
         function detectLabelsFromConfig(reviewText) {
             if (!reviewText) return 'その他';
             if (labelConfig.length === 0) {
-                // Master.xlsxがない場合や従来形式の場合は従来のロジックを使用
                 return detectLabels(reviewText);
             }
             
             const text = String(reviewText).toLowerCase();
             
-            // 優先度順に判定（既にソート済み）
             for (const config of labelConfig) {
-                if (config.patterns.length === 0) continue; // パターンが空の場合はスキップ
+                if (config.patterns.length === 0) continue;
                 
                 for (const pattern of config.patterns) {
                     try {
-                        if (text.match(new RegExp(pattern, 'i'))) { // 大文字小文字を区別しない
+                        if (text.match(new RegExp(pattern, 'i'))) {
                             console.log(`マッチ: "${config.name}" - パターン: "${pattern}"`);
                             return config.name;
                         }
@@ -464,24 +657,18 @@
                 }
             }
             
-            // どのパターンにもマッチしない場合は「その他」
             const otherLabel = labelConfig.find(c => c.name === 'その他');
             return otherLabel ? otherLabel.name : 'その他';
         }
 
-        // 改良されたラベル検出関数（K列の実データに基づく改善版）
         function detectLabels(reviewText) {
             if (!reviewText) return 'その他';
             const text = String(reviewText).toLowerCase();
             
-            // 優先順位の高い特定パターンのチェック
-            
-            // 1. 配送・梱包関連
             if (text.match(/配送|梱包|発送|届[きいくけ]|とど[きいくけ]|到着|包装|配達|宅配|荷物|箱|段ボール|ダンボール/)) {
                 return '配送・梱包';
             }
             
-            // 2. 価格関連（値上がり/高いの判定を先に）
             if (text.match(/値上[げがり]|値段.{0,5}上が|価格.{0,5}上が|高くな[っり]|値段.{0,5}高[いくめ]|高価|高額|高すぎ|たか[いく]|高い/)) {
                 return '高い・値上げ';
             }
@@ -489,17 +676,14 @@
                 return '安い';
             }
             
-            // 3. 賞味期限
             if (text.match(/賞味期限|消費期限|期限|日付|使用期限|有効期限/)) {
                 return '賞味期限';
             }
             
-            // 4. ジッパー
             if (text.match(/ジッパー|チャック|密封|ジップ|保存.{0,10}(不便|困|できない)|袋.{0,10}(閉|締)|ファスナー/)) {
                 return 'ジッパーが欲しい';
             }
             
-            // 5. 吐く・便関連（改善と悪化を明確に区別）
             if (text.match(/(吐|はく|嘔吐|吐き戻し).{0,20}(減[ったり]|なくな[ったり]|しなくな[ったり]|改善|良くな[ったり]|減少|治[ったまり])|便.{0,20}(良[くいか]な[ったり]|改善|調子が良|快調|しっかり|正常)|うんち.{0,20}(良[くいか]な[ったり]|改善|しっかり)|毛玉.{0,20}(減[ったり]|なくな[ったり]|少な[くい])/)) {
                 return '吐き戻し・便の改善';
             }
@@ -508,7 +692,6 @@
                 return '吐く・便が悪くなる';
             }
             
-            // 6. 食べる・食べない（最後に判定）
             if (text.match(/食べ(てくれ)?な[いかくけ]|食べ.{0,5}くれな[いかくけ]|食いつ[かきく].{0,5}(悪|ない|ダメ)|残[すしちり]|拒否|口にしない|見向きもしない|匂いを嗅[いぐ]だだけ|そっぽ|興味.{0,5}示さな/)) {
                 return '食べない';
             }
@@ -519,7 +702,6 @@
             return 'その他';
         }
 
-        // 改良されたセンチメント分析関数
         function analyzeSentiment(reviewText) {
             if (!reviewText) {
                 return {
@@ -530,10 +712,9 @@
             }
             
             const text = String(reviewText);
-            let score = 50; // 基準スコア
+            let score = 50;
             const reasons = [];
             
-            // ポジティブ要素の検出
             if (text.match(/食べ[るてたり](?!な)|美味[しそ]|おいし|喜んで|バクバク|完食|よく食べ|大好き/)) {
                 score += 15;
                 reasons.push('食いつきが良い');
@@ -555,7 +736,6 @@
                 reasons.push('毛並みの改善');
             }
             
-            // ネガティブ要素の検出
             if (text.match(/食べ(てくれ)?な[いかくけ]|拒否|残[すし]/)) {
                 score -= 20;
                 reasons.push('食いつきが悪い');
@@ -573,15 +753,12 @@
                 reasons.push('期待との乖離');
             }
             
-            // スコアを0-100の範囲に収める
             score = Math.max(0, Math.min(100, score));
             
-            // ラベルの判定
             let label = 'ニュートラル';
             if (score >= 70) label = 'ポジティブ';
             else if (score <= 30) label = 'ネガティブ';
             
-            // 理由の生成
             let reason = '';
             if (reasons.length > 0) {
                 reason = reasons.join('、') + 'ため。';
@@ -596,7 +773,6 @@
             };
         }
 
-        // センチメント分析サマリーの生成と表示
         function generateAndShowSentimentSummary() {
             const positive = sentimentDataList.filter(s => s.label === 'ポジティブ').length;
             const negative = sentimentDataList.filter(s => s.label === 'ネガティブ').length;
@@ -622,7 +798,6 @@
                 summaryHTML += '<li>評価が分かれており、個体差や好みの違いが大きいようです。</li>';
             }
             
-            // 主なポジティブ要因の分析
             const positiveReasons = {};
             sentimentDataList.filter(s => s.label === 'ポジティブ').forEach(s => {
                 if (s.reason.includes('食いつきが良い')) positiveReasons['食いつき'] = (positiveReasons['食いつき'] || 0) + 1;
@@ -648,12 +823,12 @@
             const statusDiv = document.getElementById('status');
             const processBtn = document.getElementById('processBtn');
             const downloadBtn = document.getElementById('downloadBtn');
+            const visualizeBtn = document.getElementById('visualizeBtn');
             
             try {
                 processBtn.disabled = true;
                 statusDiv.textContent = 'ファイルを読み込み中...';
                 
-                // Raw_Review.xlsxを探す
                 const rawReviewFile = Object.values(uploadedFiles).find(file => 
                     file.name.toLowerCase().includes('raw_review') || file.name.toLowerCase().includes('review')
                 );
@@ -668,61 +843,53 @@
                 
                 statusDiv.textContent = `データを処理中... (総行数: ${rawData.length - 1})`;
                 
-                // デバッグ: 最初の数行のデータを確認
                 console.log('ヘッダー:', rawData[0]);
                 console.log('1行目データ:', rawData[1]);
                 console.log('2行目データ:', rawData[2]);
                 
-                // ヘッダー作成
                 const headers = [...rawData[0], 'L列_ラベル', 'M列_年', 'N列_月', 'O列_年月', 'P列_センチメント', 'Q列_クォーター'];
                 processedData = [headers];
                 
-                // センチメントデータをリセット
                 sentimentDataList = [];
                 
-                // バッチ処理
                 const batchSize = 100;
                 const totalRows = rawData.length - 1;
                 
                 for (let i = 1; i < rawData.length; i++) {
                     const row = rawData[i];
                     
-                    // ★修正: B列（インデックス1）、K列（インデックス10）を参照するように変更
-                    const reviewDate = row[1]; // B列（0ベースなのでインデックス1）
-                    const reviewText = row[10]; // K列（0ベースなのでインデックス10）
+                    const reviewDate = row[1];
+                    const reviewText = row[10];
                     
-                    // デバッグ出力（最初の5行のみ）
                     if (i <= 5) {
                         console.log(`${i}行目 - 日付:`, reviewDate, 'レビュー:', reviewText?.substring(0, 50));
                     }
                     
                     const dateInfo = parseDate(reviewDate);
-                    // ★カスタムラベル設定対応: 新しい分類関数を使用
                     const labels = detectLabelsFromConfig(reviewText);
                     const sentimentData = analyzeSentiment(reviewText);
                     
-                    // センチメント分析結果をフォーマット
                     const sentimentFormatted = `ラベル: ${sentimentData.label}\\nスコア: ${sentimentData.score}\\n理由: ${sentimentData.reason}`;
                     
                     const newRow = [...row, labels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, sentimentFormatted, dateInfo.quarter];
                     processedData.push(newRow);
                     sentimentDataList.push(sentimentData);
                     
-                    // 進捗更新
                     if (i % batchSize === 0) {
                         statusDiv.textContent = `処理中... ${i}/${totalRows} (${Math.round(i/totalRows*100)}%)`;
-                        await new Promise(resolve => setTimeout(resolve, 10)); // UIを更新
+                        await new Promise(resolve => setTimeout(resolve, 10));
                     }
                 }
                 
                 statusDiv.innerHTML = '<span class="success">処理完了！</span>';
                 downloadBtn.disabled = false;
+                visualizeBtn.disabled = false;
                 
-                // 統計情報の表示
+                // 分析データの準備
+                prepareAnalysisData();
+                
                 showStatistics();
-                // センチメントサマリーの表示
                 generateAndShowSentimentSummary();
-                // サンプル結果の表示
                 showSampleResults();
                 
             } catch (error) {
@@ -731,24 +898,394 @@
             }
         }
 
-        // 統計情報を表示
+        // 新機能: 分析データの準備
+        function prepareAnalysisData() {
+            analysisData = {
+                monthlyData: {},
+                labelData: {},
+                sentimentData: {},
+                quarterlyData: {},
+                heatmapData: {}
+            };
+
+            const allLabels = new Set();
+            const allMonths = new Set();
+
+            for (let i = 1; i < processedData.length; i++) {
+                const row = processedData[i];
+                const yearMonth = row[14]; // O列
+                const label = row[11]; // L列
+                const quarter = row[16]; // Q列
+                const sentimentText = row[15]; // P列
+
+                if (yearMonth && label) {
+                    allMonths.add(yearMonth);
+                    allLabels.add(label);
+
+                    // 月別データ
+                    if (!analysisData.monthlyData[yearMonth]) {
+                        analysisData.monthlyData[yearMonth] = {};
+                    }
+                    if (!analysisData.monthlyData[yearMonth][label]) {
+                        analysisData.monthlyData[yearMonth][label] = 0;
+                    }
+                    analysisData.monthlyData[yearMonth][label]++;
+
+                    // ラベル合計
+                    if (!analysisData.labelData[label]) {
+                        analysisData.labelData[label] = 0;
+                    }
+                    analysisData.labelData[label]++;
+
+                    // クォーター別
+                    if (quarter) {
+                        if (!analysisData.quarterlyData[quarter]) {
+                            analysisData.quarterlyData[quarter] = {};
+                        }
+                        if (!analysisData.quarterlyData[quarter][label]) {
+                            analysisData.quarterlyData[quarter][label] = 0;
+                        }
+                        analysisData.quarterlyData[quarter][label]++;
+                    }
+
+                    // センチメント抽出
+                    const sentimentMatch = sentimentText.match(/ラベル: (\\w+)/);
+                    if (sentimentMatch) {
+                        const sentiment = sentimentMatch[1];
+                        if (!analysisData.sentimentData[sentiment]) {
+                            analysisData.sentimentData[sentiment] = 0;
+                        }
+                        analysisData.sentimentData[sentiment]++;
+
+                        // ヒートマップデータ
+                        const key = `${label}_${sentiment}`;
+                        if (!analysisData.heatmapData[key]) {
+                            analysisData.heatmapData[key] = 0;
+                        }
+                        analysisData.heatmapData[key]++;
+                    }
+                }
+            }
+
+            // フィルター選択肢の更新
+            updateFilterOptions();
+        }
+
+        // フィルター選択肢の更新
+        function updateFilterOptions() {
+            const labelFilter = document.getElementById('labelFilter');
+            labelFilter.innerHTML = '<option value="all">全ラベル</option>';
+            
+            Object.keys(analysisData.labelData).forEach(label => {
+                const option = document.createElement('option');
+                option.value = label;
+                option.textContent = label;
+                labelFilter.appendChild(option);
+            });
+        }
+
+        // 新機能: 可視化表示の切り替え
+        function toggleVisualization() {
+            const dashboard = document.getElementById('dashboardSection');
+            dashboardVisible = !dashboardVisible;
+            
+            if (dashboardVisible) {
+                dashboard.style.display = 'block';
+                document.getElementById('visualizeBtn').textContent = '📊 可視化非表示';
+                initializeCharts();
+                updateKPIs();
+            } else {
+                dashboard.style.display = 'none';
+                document.getElementById('visualizeBtn').textContent = '📊 可視化表示';
+                destroyAllCharts();
+            }
+        }
+
+        // チャートの初期化
+        function initializeCharts() {
+            setTimeout(() => {
+                createMonthlyTrendChart();
+                createLabelDistributionChart();
+                createSentimentChart();
+                createQuarterlyChart();
+                createHeatmapTable();
+            }, 100);
+        }
+
+        // すべてのチャートを削除
+        function destroyAllCharts() {
+            Object.values(charts).forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            charts = {};
+        }
+
+        // KPI更新
+        function updateKPIs() {
+            const total = processedData.length - 1;
+            const positive = sentimentDataList.filter(s => s.label === 'ポジティブ').length;
+            const positiveRate = ((positive / total) * 100).toFixed(1);
+            
+            const labelCounts = Object.entries(analysisData.labelData).sort((a, b) => b[1] - a[1]);
+            const topLabel = labelCounts[0] ? labelCounts[0][0] : '-';
+            const topLabelCount = labelCounts[0] ? labelCounts[0][1] : 0;
+            
+            const avgScore = (sentimentDataList.reduce((sum, s) => sum + s.score, 0) / sentimentDataList.length).toFixed(1);
+
+            document.getElementById('totalReviews').textContent = total;
+            document.getElementById('positiveRate').textContent = positiveRate + '%';
+            document.getElementById('topLabel').textContent = topLabel;
+            document.getElementById('avgScore').textContent = avgScore;
+
+            // トレンド表示（簡単な実装）
+            document.getElementById('reviewsTrend').textContent = `${total}件`;
+            document.getElementById('reviewsTrend').className = 'trend-indicator trend-stable';
+            
+            document.getElementById('positiveTrend').textContent = `${positive}件`;
+            document.getElementById('positiveTrend').className = `trend-indicator ${positiveRate > 60 ? 'trend-up' : positiveRate < 40 ? 'trend-down' : 'trend-stable'}`;
+            
+            document.getElementById('topLabelCount').textContent = `${topLabelCount}件`;
+            document.getElementById('topLabelCount').className = 'trend-indicator trend-stable';
+            
+            document.getElementById('scoreTrend').textContent = `全体平均`;
+            document.getElementById('scoreTrend').className = `trend-indicator ${avgScore > 60 ? 'trend-up' : avgScore < 40 ? 'trend-down' : 'trend-stable'}`;
+        }
+
+        // 月別推移チャート
+        function createMonthlyTrendChart() {
+            const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+            
+            const months = Object.keys(analysisData.monthlyData).sort();
+            const datasets = [];
+            
+            // 上位5ラベルのみ表示
+            const topLabels = Object.entries(analysisData.labelData)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([label]) => label);
+            
+            const colors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'
+            ];
+            
+            topLabels.forEach((label, index) => {
+                const data = months.map(month => analysisData.monthlyData[month][label] || 0);
+                datasets.push({
+                    label: label,
+                    data: data,
+                    borderColor: colors[index],
+                    backgroundColor: colors[index] + '20',
+                    fill: document.getElementById('chartType').value === 'area'
+                });
+            });
+
+            if (charts.monthlyTrend) {
+                charts.monthlyTrend.destroy();
+            }
+
+            charts.monthlyTrend = new Chart(ctx, {
+                type: document.getElementById('chartType').value === 'bar' ? 'bar' : 'line',
+                data: {
+                    labels: months,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // ラベル分布チャート
+        function createLabelDistributionChart() {
+            const ctx = document.getElementById('labelDistributionChart').getContext('2d');
+            
+            const labels = Object.keys(analysisData.labelData);
+            const data = Object.values(analysisData.labelData);
+            
+            if (charts.labelDistribution) {
+                charts.labelDistribution.destroy();
+            }
+
+            charts.labelDistribution = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                            '#FF9F40', '#C9CBCF', '#4BC0C0', '#FF6384', '#36A2EB'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+
+        // センチメントチャート
+        function createSentimentChart() {
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            
+            if (charts.sentiment) {
+                charts.sentiment.destroy();
+            }
+
+            charts.sentiment = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(analysisData.sentimentData),
+                    datasets: [{
+                        data: Object.values(analysisData.sentimentData),
+                        backgroundColor: ['#4CAF50', '#F44336', '#FF9800']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+
+        // クォーター別チャート
+        function createQuarterlyChart() {
+            const ctx = document.getElementById('quarterlyChart').getContext('2d');
+            
+            const quarters = Object.keys(analysisData.quarterlyData).sort();
+            const datasets = [];
+            
+            const topLabels = Object.entries(analysisData.labelData)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([label]) => label);
+            
+            const colors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'
+            ];
+            
+            topLabels.forEach((label, index) => {
+                const data = quarters.map(quarter => analysisData.quarterlyData[quarter][label] || 0);
+                datasets.push({
+                    label: label,
+                    data: data,
+                    backgroundColor: colors[index]
+                });
+            });
+
+            if (charts.quarterly) {
+                charts.quarterly.destroy();
+            }
+
+            charts.quarterly = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: quarters,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // ヒートマップテーブル
+        function createHeatmapTable() {
+            const container = document.getElementById('heatmapTable');
+            const labels = Object.keys(analysisData.labelData);
+            const sentiments = ['ポジティブ', 'ネガティブ', 'ニュートラル'];
+            
+            let html = '<tr><th>ラベル</th>';
+            sentiments.forEach(sentiment => {
+                html += `<th>${sentiment}</th>`;
+            });
+            html += '</tr>';
+            
+            labels.forEach(label => {
+                html += `<tr><td style="font-weight: bold; padding: 8px; border: 1px solid #ddd;">${label}</td>`;
+                sentiments.forEach(sentiment => {
+                    const key = `${label}_${sentiment}`;
+                    const count = analysisData.heatmapData[key] || 0;
+                    const total = analysisData.labelData[label] || 1;
+                    const percentage = ((count / total) * 100).toFixed(1);
+                    
+                    let bgColor = '#f5f5f5';
+                    if (sentiment === 'ポジティブ' && percentage > 50) bgColor = '#c8e6c9';
+                    else if (sentiment === 'ネガティブ' && percentage > 30) bgColor = '#ffcdd2';
+                    else if (sentiment === 'ニュートラル' && percentage > 40) bgColor = '#e1f5fe';
+                    
+                    html += `<td style="padding: 8px; border: 1px solid #ddd; background-color: ${bgColor}; text-align: center;">
+                        ${count}<br><small>${percentage}%</small>
+                    </td>`;
+                });
+                html += '</tr>';
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // チャート更新
+        function updateCharts() {
+            if (dashboardVisible) {
+                destroyAllCharts();
+                initializeCharts();
+            }
+        }
+
         function showStatistics() {
             const statsDiv = document.getElementById('stats');
             const statsContent = document.getElementById('statsContent');
             
-            // 年月別集計
             const yearMonthStats = {};
             const labelStats = {};
             
             for (let i = 1; i < processedData.length; i++) {
-                const yearMonth = processedData[i][14]; // O列
-                const labels = processedData[i][11]; // L列
+                const yearMonth = processedData[i][14];
+                const labels = processedData[i][11];
                 
                 if (yearMonth) {
                     yearMonthStats[yearMonth] = (yearMonthStats[yearMonth] || 0) + 1;
                 }
                 
-                // ラベル集計（単一ラベルとして扱う）
                 if (labels) {
                     labelStats[labels] = (labelStats[labels] || 0) + 1;
                 }
@@ -758,7 +1295,6 @@
             html += '<p><strong>期間:</strong> ' + Object.keys(yearMonthStats).sort()[0] + ' ～ ' + 
                     Object.keys(yearMonthStats).sort().slice(-1)[0] + '</p>';
             
-            // カスタムラベル設定の表示
             if (labelConfig.length > 0) {
                 html += `<p><strong>ラベル設定:</strong> カスタム設定（${labelConfig.length}件）</p>`;
             } else {
@@ -775,7 +1311,6 @@
             statsDiv.style.display = 'block';
         }
 
-        // サンプル結果を表示
         function showSampleResults() {
             const sampleDiv = document.getElementById('sampleResults');
             const sampleContent = document.getElementById('sampleContent');
@@ -797,51 +1332,42 @@
             sampleDiv.style.display = 'block';
         }
 
-        // Excelファイルをダウンロード
         function downloadExcel() {
             if (!processedData) return;
             
-            // シート1: 処理済みデータ
             const wb = XLSX.utils.book_new();
             const ws1 = XLSX.utils.aoa_to_sheet(processedData);
             XLSX.utils.book_append_sheet(wb, ws1, 'レビューデータ');
             
-            // シート2: 統計データを作成（3つの表を含む）
             const statsData = createStatisticsSheet();
             const ws2 = XLSX.utils.aoa_to_sheet(statsData);
             XLSX.utils.book_append_sheet(wb, ws2, '統計分析');
             
-            // シート3: センチメントサマリー
             const sentimentSummaryData = createSentimentSummarySheet();
             const ws3 = XLSX.utils.aoa_to_sheet(sentimentSummaryData);
             XLSX.utils.book_append_sheet(wb, ws3, 'センチメント分析');
             
-            // ファイルをダウンロード
             XLSX.writeFile(wb, 'ペットフードレビュー分析結果.xlsx');
         }
 
-        // 統計シートを作成（3つの表を含む）
         function createStatisticsSheet() {
             const statsData = [['ペットフードレビュー分析結果 - 統計分析']];
             statsData.push([]);
             
-            // データ集計の準備
             const yearMonthLabelCounts = {};
             const quarterLabelCounts = {};
             const yearMonthTotals = {};
             const quarterTotals = {};
             
-            // カスタムラベル設定がある場合はそれを使用、なければmasterLabels
             const allLabels = new Set(labelConfig.length > 0 ? 
                 labelConfig.map(c => c.name) : masterLabels);
             const allYearMonths = new Set();
             const allQuarters = new Set();
             
-            // データ集計
             for (let i = 1; i < processedData.length; i++) {
-                const yearMonth = processedData[i][14]; // O列
-                const quarter = processedData[i][16]; // Q列
-                const label = processedData[i][11]; // L列（単一ラベル）
+                const yearMonth = processedData[i][14];
+                const quarter = processedData[i][16];
+                const label = processedData[i][11];
                 
                 if (yearMonth && label) {
                     allYearMonths.add(yearMonth);
@@ -872,7 +1398,6 @@
             const sortedQuarters = Array.from(allQuarters).sort();
             const sortedLabels = Array.from(allLabels);
             
-            // 表1: 年月ごとの実数推移
             statsData.push(['【表1】年月ごとの実数推移']);
             statsData.push(['ラベル', ...sortedYearMonths]);
             
@@ -884,18 +1409,15 @@
                 statsData.push(row);
             });
             
-            // 合計行
             const totalRow = ['合計'];
             sortedYearMonths.forEach(ym => {
                 totalRow.push(yearMonthTotals[ym] || 0);
             });
             statsData.push(totalRow);
             
-            // 空行で区切り
             statsData.push([]);
             statsData.push([]);
             
-            // 表2: 年月ごとの割合推移
             statsData.push(['【表2】年月ごとの割合推移（%）']);
             statsData.push(['ラベル', ...sortedYearMonths]);
             
@@ -910,14 +1432,11 @@
                 statsData.push(row);
             });
             
-            // 空行で区切り
             statsData.push([]);
             statsData.push([]);
             
-            // 表3: クォーターごとのまとめ
             statsData.push(['【表3】クォーターごとのまとめ']);
             
-            // 実数部分
             statsData.push(['ラベル（実数）', ...sortedQuarters]);
             sortedLabels.forEach(label => {
                 const row = [label];
@@ -927,7 +1446,6 @@
                 statsData.push(row);
             });
             
-            // 合計行
             const quarterTotalRow = ['合計'];
             sortedQuarters.forEach(q => {
                 quarterTotalRow.push(quarterTotals[q] || 0);
@@ -936,7 +1454,6 @@
             
             statsData.push([]);
             
-            // 割合部分
             statsData.push(['ラベル（割合%）', ...sortedQuarters]);
             sortedLabels.forEach(label => {
                 const row = [label];
@@ -952,7 +1469,6 @@
             return statsData;
         }
 
-        // センチメントサマリーシートを作成
         function createSentimentSummarySheet() {
             const summaryData = [['センチメント分析サマリー']];
             summaryData.push([]);
@@ -981,7 +1497,6 @@
                 summaryData.push(['評価が分かれており、個体差や好みの違いが大きいようです。']);
             }
             
-            // 月別センチメント推移
             summaryData.push([]);
             summaryData.push(['月別センチメント推移']);
             
