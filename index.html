@@ -153,6 +153,14 @@
         .debug-button:hover {
             background-color: #f57c00;
         }
+        .master-info {
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 12px;
+            border-left: 4px solid #4CAF50;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -169,6 +177,12 @@
                 1. Raw_Review.xlsx（レビューデータ）<br>
                 2. Master.xlsx（ラベルマスター）※オプション
             </p>
+            <div class="master-info">
+                <strong>🎯 Master.xlsxの新形式（拡張機能）：</strong><br>
+                A列：ラベル名、B列：優先度（数値）、C列：判定パターン（|区切り）<br>
+                例：A1=「配送・梱包」、B1=1、C1=「配送|梱包|発送|届く|箱」<br>
+                ※従来形式（A列のみ）でも動作します
+            </div>
         </div>
 
         <div id="fileList" class="file-list" style="display: none;">
@@ -209,6 +223,7 @@
             '食べる', '食べない', '吐き戻し・便の改善', 'その他', '安い',
             '配送・梱包', '高い・値上げ', '吐く・便が悪くなる', '賞味期限', 'ジッパーが欲しい'
         ];
+        let labelConfig = []; // 新しいカスタムラベル設定配列
         let uploadedFiles = {};
         let sentimentDataList = [];
 
@@ -291,7 +306,7 @@
                 document.getElementById('status').style.display = 'block';
                 document.getElementById('status').textContent = '処理準備完了';
                 
-                // Master.xlsxがある場合は読み込む
+                // Master.xlsxがある場合は読み込む（拡張機能対応）
                 const masterFile = Object.values(uploadedFiles).find(file => 
                     file.name.toLowerCase().includes('master')
                 );
@@ -299,7 +314,32 @@
                     const workbook = XLSX.read(masterFile.data);
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-                    masterLabels = data.map(row => row[0]).filter(label => label);
+                    
+                    // 拡張形式のチェック（B列またはC列にデータがあるか）
+                    const hasExtendedFormat = data.some(row => row[1] || row[2]);
+                    
+                    if (hasExtendedFormat) {
+                        // 拡張形式（A列：ラベル名、B列：優先度、C列：パターン）
+                        labelConfig = data
+                            .filter(row => row[0]) // A列が空でない行のみ
+                            .map(row => ({
+                                name: row[0],                    // A列：ラベル名
+                                priority: parseInt(row[1]) || 999, // B列：優先度（未指定は最低優先）
+                                patterns: row[2] ? row[2].split('|').filter(p => p.trim()) : [] // C列：パターン（|区切り）
+                            }))
+                            .sort((a, b) => a.priority - b.priority); // 優先度順にソート
+                        
+                        console.log('カスタムラベル設定を読み込みました:', labelConfig);
+                        document.getElementById('status').textContent = `処理準備完了（カスタムラベル設定: ${labelConfig.length}件）`;
+                    } else {
+                        // 従来形式（A列のみ）
+                        labelConfig = [];
+                        masterLabels = data.map(row => row[0]).filter(label => label);
+                        console.log('従来形式のMaster.xlsxを読み込みました:', masterLabels);
+                    }
+                } else {
+                    // Master.xlsxがない場合はデフォルト設定
+                    labelConfig = [];
                 }
             } else {
                 document.getElementById('processBtn').style.display = 'none';
@@ -325,7 +365,7 @@
             }
             // 2. 「2024年1月」形式
             else if (typeof dateStr === 'string') {
-                const yearMonthMatch = dateStr.match(/(\d{4})年(\d{1,2})月/);
+                const yearMonthMatch = dateStr.match(/(\\d{4})年(\\d{1,2})月/);
                 if (yearMonthMatch) {
                     const year = parseInt(yearMonthMatch[1]);
                     const month = parseInt(yearMonthMatch[2]);
@@ -396,6 +436,37 @@
             }
             
             alert('コンソールを確認してください。F12を押してConsoleタブを見てください。');
+        }
+
+        // カスタムラベル設定による分類関数
+        function detectLabelsFromConfig(reviewText) {
+            if (!reviewText) return 'その他';
+            if (labelConfig.length === 0) {
+                // Master.xlsxがない場合や従来形式の場合は従来のロジックを使用
+                return detectLabels(reviewText);
+            }
+            
+            const text = String(reviewText).toLowerCase();
+            
+            // 優先度順に判定（既にソート済み）
+            for (const config of labelConfig) {
+                if (config.patterns.length === 0) continue; // パターンが空の場合はスキップ
+                
+                for (const pattern of config.patterns) {
+                    try {
+                        if (text.match(new RegExp(pattern, 'i'))) { // 大文字小文字を区別しない
+                            console.log(`マッチ: "${config.name}" - パターン: "${pattern}"`);
+                            return config.name;
+                        }
+                    } catch (e) {
+                        console.warn(`無効な正規表現: ${pattern}`, e);
+                    }
+                }
+            }
+            
+            // どのパターンにもマッチしない場合は「その他」
+            const otherLabel = labelConfig.find(c => c.name === 'その他');
+            return otherLabel ? otherLabel.name : 'その他';
         }
 
         // 改良されたラベル検出関数（K列の実データに基づく改善版）
@@ -626,11 +697,12 @@
                     }
                     
                     const dateInfo = parseDate(reviewDate);
-                    const labels = detectLabels(reviewText);
+                    // ★カスタムラベル設定対応: 新しい分類関数を使用
+                    const labels = detectLabelsFromConfig(reviewText);
                     const sentimentData = analyzeSentiment(reviewText);
                     
                     // センチメント分析結果をフォーマット
-                    const sentimentFormatted = `ラベル: ${sentimentData.label}\nスコア: ${sentimentData.score}\n理由: ${sentimentData.reason}`;
+                    const sentimentFormatted = `ラベル: ${sentimentData.label}\\nスコア: ${sentimentData.score}\\n理由: ${sentimentData.reason}`;
                     
                     const newRow = [...row, labels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, sentimentFormatted, dateInfo.quarter];
                     processedData.push(newRow);
@@ -686,6 +758,13 @@
             html += '<p><strong>期間:</strong> ' + Object.keys(yearMonthStats).sort()[0] + ' ～ ' + 
                     Object.keys(yearMonthStats).sort().slice(-1)[0] + '</p>';
             
+            // カスタムラベル設定の表示
+            if (labelConfig.length > 0) {
+                html += `<p><strong>ラベル設定:</strong> カスタム設定（${labelConfig.length}件）</p>`;
+            } else {
+                html += '<p><strong>ラベル設定:</strong> デフォルト設定</p>';
+            }
+            
             html += '<p><strong>ラベル別件数:</strong></p><ul>';
             Object.entries(labelStats).sort((a, b) => b[1] - a[1]).forEach(([label, count]) => {
                 html += `<li>${label}: ${count}件</li>`;
@@ -704,7 +783,7 @@
             let html = '';
             for (let i = 1; i <= 5 && i < processedData.length; i++) {
                 const row = processedData[i];
-                const sentimentLines = row[15].split('\n');
+                const sentimentLines = row[15].split('\\n');
                 html += `<div class="result-item">
                     <strong>レビュー:</strong> ${String(row[10]).substring(0, 100)}...<br>
                     <strong>ラベル:</strong> ${row[11]}<br>
@@ -751,7 +830,10 @@
             const quarterLabelCounts = {};
             const yearMonthTotals = {};
             const quarterTotals = {};
-            const allLabels = new Set(masterLabels); // マスターラベルを使用
+            
+            // カスタムラベル設定がある場合はそれを使用、なければmasterLabels
+            const allLabels = new Set(labelConfig.length > 0 ? 
+                labelConfig.map(c => c.name) : masterLabels);
             const allYearMonths = new Set();
             const allQuarters = new Set();
             
@@ -917,7 +999,7 @@
                         };
                     }
                     
-                    const sentimentMatch = sentiment.match(/ラベル: (\w+)/);
+                    const sentimentMatch = sentiment.match(/ラベル: (\\w+)/);
                     if (sentimentMatch) {
                         monthSentiment[yearMonth][sentimentMatch[1]]++;
                     }
