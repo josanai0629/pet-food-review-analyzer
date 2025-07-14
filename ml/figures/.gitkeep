@@ -1,0 +1,10 @@
+# このファイルは空のディレクトリをGitで管理するためのプレースホルダーです
+# EDA分析の図表がここに保存されます
+
+## 保存される図表
+
+- `label_distribution.png` - ラベル分布
+- `text_length_analysis.png` - テキスト長分析
+- `wordclouds_all_labels.png` - ワードクラウド
+- `correlation_analysis.png` - 相関分析
+- その他の可視化図表
