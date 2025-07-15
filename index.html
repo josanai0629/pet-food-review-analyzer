@@ -590,7 +590,7 @@
                 date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
             }
             else if (typeof dateStr === 'string') {
-                const yearMonthMatch = dateStr.match(/(\\d{4})年(\\d{1,2})月/);
+                const yearMonthMatch = dateStr.match(/(\d{4})年(\d{1,2})月/);
                 if (yearMonthMatch) {
                     const year = parseInt(yearMonthMatch[1]);
                     const month = parseInt(yearMonthMatch[2]);
@@ -789,6 +789,34 @@
             }
             
             return scores;
+        }
+
+        // 🎯 新機能: ハイブリッドシステム（Phase 2実装）
+        function detectLabelsHybrid(reviewText) {
+            if (!reviewText) return 'その他';
+            
+            // Step 1: 明確なカテゴリをまず判定（優先度順）
+            const explicitCategories = detectLabels(reviewText);
+            
+            // Step 2: 「その他」以外なら従来版の結果を採用
+            if (explicitCategories !== 'その他') {
+                return explicitCategories;
+            }
+            
+            // Step 3: 文脈分析を活用したスコアリング
+            const context = analyzeReviewContext(reviewText);
+            const scores = calculateLabelScores(reviewText, context);
+            
+            // Step 4: 一定スコア以上なら最高スコアのラベルを採用
+            const maxScore = Math.max(...Object.values(scores));
+            if (maxScore >= 3) {  // 閾値を3に設定
+                const topLabels = Object.entries(scores)
+                    .filter(([_, score]) => score === maxScore);
+                return topLabels[0][0];
+            }
+            
+            // Step 5: それでも判定できない場合のみ「その他」
+            return 'その他';
         }
 
         // 🎯 新機能: スコアリングシステム
@@ -1109,7 +1137,8 @@
                     }
                     
                     const dateInfo = parseDate(reviewDate);
-                    const labels = detectLabelsFromConfig(reviewText);
+                    // 🎯 Phase 1: 緊急パッチ - detectLabels を使用
+                    const labels = detectLabels(reviewText);
                     const sentimentData = analyzeSentiment(reviewText);
                     
                     const sentimentFormatted = `ラベル: ${sentimentData.label}\\nスコア: ${sentimentData.score}\\n理由: ${sentimentData.reason}`;
@@ -1124,7 +1153,7 @@
                     }
                 }
                 
-                statusDiv.innerHTML = '<span class="success">処理完了！高精度ラベリングシステムv2.0適用済み</span>';
+                statusDiv.innerHTML = '<span class="success">処理完了！Phase 1: 緊急パッチ適用済み（従来版ラベリング使用）</span>';
                 downloadBtn.disabled = false;
                 visualizeBtn.disabled = false;
                 
@@ -1192,7 +1221,7 @@
                     }
 
                     // センチメント抽出
-                    const sentimentMatch = sentimentText.match(/ラベル: (\\w+)/);
+                    const sentimentMatch = sentimentText.match(/ラベル: (\w+)/);
                     if (sentimentMatch) {
                         const sentiment = sentimentMatch[1];
                         if (!analysisData.sentimentData[sentiment]) {
@@ -1544,7 +1573,7 @@
                 html += '<p><strong>ラベル設定:</strong> デフォルト設定</p>';
             }
             
-            html += '<p><strong>🎯 高精度化システム:</strong> 文脈分析+スコアリング適用済み</p>';
+            html += '<p><strong>🎯 Phase 1:</strong> 緊急パッチ適用済み（従来版ラベリング使用）</p>';
             
             html += '<p><strong>ラベル別件数:</strong></p><ul>';
             Object.entries(labelStats).sort((a, b) => b[1] - a[1]).forEach(([label, count]) => {
@@ -1592,11 +1621,11 @@
             const ws3 = XLSX.utils.aoa_to_sheet(sentimentSummaryData);
             XLSX.utils.book_append_sheet(wb, ws3, 'センチメント分析');
             
-            XLSX.writeFile(wb, 'ペットフードレビュー分析結果_高精度版.xlsx');
+            XLSX.writeFile(wb, 'ペットフードレビュー分析結果_Phase1_緊急パッチ適用.xlsx');
         }
 
         function createStatisticsSheet() {
-            const statsData = [['ペットフードレビュー分析結果 - 統計分析（高精度版）']];
+            const statsData = [['ペットフードレビュー分析結果 - 統計分析（Phase 1: 緊急パッチ適用版）']];
             statsData.push([]);
             
             const yearMonthLabelCounts = {};
@@ -1715,7 +1744,7 @@
         }
 
         function createSentimentSummarySheet() {
-            const summaryData = [['センチメント分析サマリー（高精度版）']];
+            const summaryData = [['センチメント分析サマリー（Phase 1: 緊急パッチ適用版）']];
             summaryData.push([]);
             
             const positive = sentimentDataList.filter(s => s.label === 'ポジティブ').length;
@@ -1759,7 +1788,7 @@
                         };
                     }
                     
-                    const sentimentMatch = sentiment.match(/ラベル: (\\w+)/);
+                    const sentimentMatch = sentiment.match(/ラベル: (\w+)/);
                     if (sentimentMatch) {
                         monthSentiment[yearMonth][sentimentMatch[1]]++;
                     }
