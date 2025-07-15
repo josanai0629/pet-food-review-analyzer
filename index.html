@@ -937,9 +937,9 @@
             
             // 3. 閾値判定（複数段階）
             const maxScore = Math.max(...Object.values(scores));
-            if (maxScore >= 8) return getTopScoringLabel(scores);      // 高信頼度
-            if (maxScore >= 5) return getTopScoringLabel(scores);      // 中信頼度
-            if (maxScore >= 2) return getTopScoringLabel(scores);      // 低信頼度
+            if (maxScore >= 15) return getTopScoringLabel(scores);     // 高信頼度（8→15）
+            if (maxScore >= 10) return getTopScoringLabel(scores);     // 中信頼度（5→10）
+            if (maxScore >= 6) return getTopScoringLabel(scores);      // 低信頼度（2→6）
             
             return 'その他';
         }
