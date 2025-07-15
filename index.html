@@ -918,6 +918,38 @@
                 });
             });
             
+            // 「その他」削減のための補強パターン（教師データ分析結果）
+            const otherReductionPatterns = {
+                '食べる': [
+                    /購入|買う|注文|リピート|定期|継続|やめる|中止|変更/,
+                    /まとめ買い|セール|キャンペーン|割引|ポイント|送料/,
+                    /チキン|ミール|原材料|成分|無添加|グレインフリー|タンパク質/,
+                    /ニュートロ|ヒルズ|ロイヤルカナン|サイエンス|ダイエット/,
+                    /フード|エサ|餌|ドライ|ウェット|缶詰|パウチ/,
+                    /シリーズ|種類|メーカー|ブランド|商品|製品/
+                ],
+                '吐き戻し・便の改善': [
+                    /毛並み|毛艶|毛質|ツヤ|サラサラ|ふわふわ|手触り|光沢/,
+                    /毛玉|抜け毛|換毛|被毛|コート|艶々|つやつや/,
+                    /体重|痩せ|太|ダイエット|減量|増量|維持|管理|肥満/,
+                    /健康|元気|調子.{0,5}良|活発|生き生き|若々しい/,
+                    /スリム|引き締|筋肉|脂肪|カロリー.{0,10}(制限|調整)/
+                ],
+                '配送・梱包': [
+                    /パッケージ|商品情報|写真|画像|表示|記載|説明|サイズ|容量|内容量|重量/,
+                    /ラベル|表記|印刷|デザイン|色|見た目|外観|袋|パック/
+                ]
+            };
+            
+            // 補強パターンのスコアリング（低スコアで慎重に）
+            Object.entries(otherReductionPatterns).forEach(([category, patterns]) => {
+                patterns.forEach(pattern => {
+                    if (lowerText.match(pattern)) {
+                        scores[category] += 6 * weight;  // 低スコアで慎重に
+                    }
+                });
+            });
+            
             return scores;
         }
 
@@ -1020,33 +1052,36 @@
             return hierarchicalPriority.find(label => topLabels.includes(label)) || 'その他';
         }
         
-        // 階層的分類判定システム（10カテゴリ対応・強化版）
+        // 階層的分類判定システム（「その他」削減強化版）
         function classifyHierarchically(reviewText, scores) {
             // 第1段階: 明確な判定（高信頼度）
-            if (scores['賞味期限'] >= 8) return '賞味期限';
-            if (scores['ジッパー'] >= 8) return 'ジッパー';
-            if (scores['配送・梱包'] >= 12) return '配送・梱包';
+            if (scores['賞味期限'] >= 6) return '賞味期限';  // 8→6
+            if (scores['ジッパー'] >= 6) return 'ジッパー';  // 8→6
+            if (scores['配送・梱包'] >= 8) return '配送・梱包';  // 12→8
             
             // 第2段階: 健康関連（中～高信頼度）
-            if (scores['吐く・便が悪くなる'] >= 12) return '吐く・便が悪くなる';
-            if (scores['吐き戻し・便の改善'] >= 12) return '吐き戻し・便の改善';
+            if (scores['吐く・便が悪くなる'] >= 8) return '吐く・便が悪くなる';  // 12→8
+            if (scores['吐き戻し・便の改善'] >= 8) return '吐き戻し・便の改善';  // 12→8
             
             // 第3段階: 食事関連（スコア重視・強化版）
-            if (scores['食べない'] >= 15) return '食べない';
-            if (scores['食べる'] >= 15) return '食べる';
-            if (scores['食べない'] >= 10) return '食べない';
-            if (scores['食べる'] >= 12) return '食べる';  // 「食べる」を少し優先
+            if (scores['食べない'] >= 10) return '食べない';  // 15→10
+            if (scores['食べる'] >= 10) return '食べる';  // 15→10
+            if (scores['食べない'] >= 8) return '食べない';  // 10→8
+            if (scores['食べる'] >= 8) return '食べる';  // 12→8
             
             // 第4段階: 価格関連（厳格判定）
-            if (scores['値上がり/高い'] >= 15) return '値上がり/高い';
-            if (scores['安い'] >= 15) return '安い';
+            if (scores['値上がり/高い'] >= 10) return '値上がり/高い';  // 15→10
+            if (scores['安い'] >= 10) return '安い';  // 15→10
             
-            // 第5段階: 低信頼度判定（閾値を下げて積極的に分類）
+            // 第5段階: 積極的分類（閾値を大幅に下げる）
             const maxScore = Math.max(...Object.values(scores));
-            if (maxScore >= 8) {
+            if (maxScore >= 6) {
                 return getTopScoringLabelHierarchical(scores);
             }
-            if (maxScore >= 6) {
+            if (maxScore >= 4) {  // 6→4
+                return getTopScoringLabelHierarchical(scores);
+            }
+            if (maxScore >= 2) {  // 新設
                 return getTopScoringLabelHierarchical(scores);
             }
             
