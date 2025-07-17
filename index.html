@@ -2344,6 +2344,704 @@
             
             return summaryData;
         }
+        
+        // ===========================================
+        // 🎓 教師データ学習システム
+        // ===========================================
+        
+        /**
+         * Pet Food Review Classification Teacher Learning System
+         * 
+         * This system learns from teacher data to improve classification accuracy
+         */
+        class PetFoodTeacherLearning {
+            constructor() {
+                // 10 fixed categories
+                this.categories = [
+                    '吐く・便が悪くなる',
+                    '食べない',
+                    '吐き戻し・便の改善',
+                    '食べる',
+                    '値上がり/高い',
+                    '安い',
+                    '配送・梱包',
+                    '賞味期限',
+                    'ジッパー',
+                    'その他'
+                ];
+
+                // Initialize pattern storage for each category
+                this.categoryPatterns = {};
+                this.categoryWeights = {};
+                this.wordImportance = {};
+                this.contextPatterns = {};
+                this.negationPatterns = {};
+                
+                // Initialize structures
+                this.categories.forEach(category => {
+                    this.categoryPatterns[category] = new Map();
+                    this.categoryWeights[category] = 1.0;
+                    this.wordImportance[category] = new Map();
+                    this.contextPatterns[category] = [];
+                    this.negationPatterns[category] = new Set();
+                });
+
+                // Learning parameters
+                this.learningRate = 0.1;
+                this.minPatternOccurrence = 2;
+                this.contextWindowSize = 3;
+                
+                // Initialize base patterns
+                this.initializeBasePatterns();
+                
+                // Load saved model if exists
+                this.loadModel();
+            }
+            
+            /**
+             * Initialize base patterns for each category
+             */
+            initializeBasePatterns() {
+                // Category 1: 吐く・便が悪くなる
+                this.addBasePatterns('吐く・便が悪くなる', [
+                    { pattern: '吐', weight: 3.0 },
+                    { pattern: '嘆吐', weight: 3.0 },
+                    { pattern: '下痢', weight: 3.0 },
+                    { pattern: '軟便', weight: 2.5 },
+                    { pattern: '便.*ゆるい', weight: 2.5 },
+                    { pattern: '戻.*す', weight: 2.0 },
+                    { pattern: 'お腹.*壊', weight: 2.5 },
+                    { pattern: '体調.*悪', weight: 2.0 },
+                    { pattern: '調子.*悪', weight: 2.0 },
+                    { pattern: '具合.*悪', weight: 2.0 }
+                ]);
+
+                // Category 2: 食べない
+                this.addBasePatterns('食べない', [
+                    { pattern: '食べ.*ない', weight: 3.0 },
+                    { pattern: '食べ.*ず', weight: 3.0 },
+                    { pattern: '食いつき.*悪', weight: 2.5 },
+                    { pattern: '残', weight: 2.0 },
+                    { pattern: '好み.*ない', weight: 2.0 },
+                    { pattern: '口.*つけ.*ない', weight: 2.5 },
+                    { pattern: '拒否', weight: 2.5 },
+                    { pattern: '苦手', weight: 2.0 },
+                    { pattern: '嫌い', weight: 2.0 },
+                    { pattern: '見向き.*しない', weight: 2.5 }
+                ]);
+
+                // Category 3: 吐き戻し・便の改善
+                this.addBasePatterns('吐き戻し・便の改善', [
+                    { pattern: '吐.*なくなった', weight: 3.0 },
+                    { pattern: '吐.*減った', weight: 3.0 },
+                    { pattern: '便.*良くなった', weight: 3.0 },
+                    { pattern: '便.*改善', weight: 3.0 },
+                    { pattern: '下痢.*治', weight: 3.0 },
+                    { pattern: '調子.*良', weight: 2.5 },
+                    { pattern: '元気.*なった', weight: 2.0 },
+                    { pattern: '体調.*良', weight: 2.5 },
+                    { pattern: 'お腹.*改善', weight: 2.5 }
+                ]);
+
+                // Category 4: 食べる
+                this.addBasePatterns('食べる', [
+                    { pattern: '食いつき.*良', weight: 3.0 },
+                    { pattern: 'よく.*食べ', weight: 3.0 },
+                    { pattern: '美味し', weight: 2.5 },
+                    { pattern: '完食', weight: 3.0 },
+                    { pattern: '喜.*食べ', weight: 3.0 },
+                    { pattern: 'ペロリ', weight: 2.5 },
+                    { pattern: 'がっつ', weight: 2.5 },
+                    { pattern: 'お気に入り', weight: 2.5 },
+                    { pattern: '大好き', weight: 2.5 }
+                ]);
+
+                // Category 5: 値上がり/高い
+                this.addBasePatterns('値上がり/高い', [
+                    { pattern: '値上', weight: 3.0 },
+                    { pattern: '高い', weight: 2.5 },
+                    { pattern: '高く', weight: 2.5 },
+                    { pattern: '価格.*上', weight: 3.0 },
+                    { pattern: '値段.*上', weight: 3.0 },
+                    { pattern: 'コスト', weight: 2.0 },
+                    { pattern: '予算.*オーバー', weight: 2.5 },
+                    { pattern: '負担', weight: 2.0 },
+                    { pattern: '円.*高', weight: 2.5 }
+                ]);
+
+                // Category 6: 安い
+                this.addBasePatterns('安い', [
+                    { pattern: '安い', weight: 3.0 },
+                    { pattern: '安く', weight: 3.0 },
+                    { pattern: 'お得', weight: 2.5 },
+                    { pattern: 'リーズナブル', weight: 2.5 },
+                    { pattern: 'コスパ.*良', weight: 3.0 },
+                    { pattern: '格安', weight: 3.0 },
+                    { pattern: '値下', weight: 2.5 },
+                    { pattern: '割引', weight: 2.5 },
+                    { pattern: 'セール', weight: 2.0 }
+                ]);
+
+                // Category 7: 配送・梱包
+                this.addBasePatterns('配送・梱包', [
+                    { pattern: '配送', weight: 3.0 },
+                    { pattern: '配達', weight: 3.0 },
+                    { pattern: '梱包', weight: 3.0 },
+                    { pattern: '包装', weight: 2.5 },
+                    { pattern: '届', weight: 2.0 },
+                    { pattern: '発送', weight: 2.5 },
+                    { pattern: '箱', weight: 2.0 },
+                    { pattern: '破損', weight: 2.5 },
+                    { pattern: '到着', weight: 2.0 }
+                ]);
+
+                // Category 8: 賞味期限
+                this.addBasePatterns('賞味期限', [
+                    { pattern: '賞味期限', weight: 3.5 },
+                    { pattern: '消費期限', weight: 3.5 },
+                    { pattern: '期限', weight: 2.5 },
+                    { pattern: '日付', weight: 2.0 },
+                    { pattern: '期限.*切れ', weight: 3.0 },
+                    { pattern: '古い', weight: 2.0 },
+                    { pattern: '新鮮', weight: 2.0 },
+                    { pattern: '製造.*日', weight: 2.5 }
+                ]);
+
+                // Category 9: ジッパー
+                this.addBasePatterns('ジッパー', [
+                    { pattern: 'ジッパー', weight: 3.5 },
+                    { pattern: 'チャック', weight: 3.5 },
+                    { pattern: '密封', weight: 2.5 },
+                    { pattern: '保存.*しやすい', weight: 2.5 },
+                    { pattern: '開け.*閉め', weight: 2.0 },
+                    { pattern: 'ファスナー', weight: 3.0 },
+                    { pattern: '密閉', weight: 2.5 }
+                ]);
+
+                // Category 10: その他 - handled by exclusion
+                this.addBasePatterns('その他', [
+                    { pattern: '.*', weight: 0.1 }
+                ]);
+            }
+            
+            /**
+             * Add base patterns to a category
+             */
+            addBasePatterns(category, patterns) {
+                patterns.forEach(({ pattern, weight }) => {
+                    this.categoryPatterns[category].set(pattern, weight);
+                });
+            }
+            
+            /**
+             * Process teacher data to learn patterns
+             */
+            processTeacherData(teacherData) {
+                const categoryWordFreq = {};
+                const totalWordFreq = new Map();
+                const categoryDocCount = {};
+
+                this.categories.forEach(cat => {
+                    categoryWordFreq[cat] = new Map();
+                    categoryDocCount[cat] = 0;
+                });
+
+                // Process each training example
+                teacherData.forEach(example => {
+                    const { text, category } = example;
+                    if (!this.categories.includes(category)) return;
+                    
+                    categoryDocCount[category]++;
+                    const words = this.extractWords(text);
+                    
+                    words.forEach(word => {
+                        // Update category word frequency
+                        categoryWordFreq[category].set(word, 
+                            (categoryWordFreq[category].get(word) || 0) + 1);
+                        
+                        // Update total word frequency
+                        totalWordFreq.set(word, (totalWordFreq.get(word) || 0) + 1);
+                    });
+                });
+
+                // Calculate TF-IDF like importance scores
+                this.calculateWordImportance(categoryWordFreq, totalWordFreq, categoryDocCount);
+                
+                // Learn context patterns
+                this.learnContextPatterns(teacherData);
+                
+                // Learn negation patterns
+                this.learnNegationPatterns(teacherData);
+                
+                // Save learned model
+                this.saveModel();
+            }
+            
+            /**
+             * Extract words from Japanese text
+             */
+            extractWords(text) {
+                // Simple Japanese word extraction
+                const words = [];
+                const patterns = [
+                    /[\u3040-\u309F]+/g,  // Hiragana
+                    /[\u30A0-\u30FF]+/g,  // Katakana
+                    /[\u4E00-\u9FAF]+/g,  // Kanji
+                    /[a-zA-Z0-9]+/g      // Alphanumeric
+                ];
+                
+                patterns.forEach(pattern => {
+                    const matches = text.match(pattern);
+                    if (matches) {
+                        words.push(...matches.filter(word => word.length > 1));
+                    }
+                });
+                
+                return words;
+            }
+            
+            /**
+             * Calculate word importance using TF-IDF like scoring
+             */
+            calculateWordImportance(categoryWordFreq, totalWordFreq, categoryDocCount) {
+                const totalDocs = Object.values(categoryDocCount).reduce((a, b) => a + b, 0);
+                
+                this.categories.forEach(category => {
+                    const categoryWords = categoryWordFreq[category];
+                    const docCount = categoryDocCount[category];
+                    
+                    categoryWords.forEach((freq, word) => {
+                        // TF: Term frequency in category
+                        const tf = freq / docCount;
+                        
+                        // IDF: Inverse document frequency
+                        const docsWithWord = this.categories.reduce((count, cat) => {
+                            return count + (categoryWordFreq[cat].has(word) ? 1 : 0);
+                        }, 0);
+                        const idf = Math.log(this.categories.length / (1 + docsWithWord));
+                        
+                        // TF-IDF score
+                        const importance = tf * idf;
+                        
+                        // Store importance score
+                        this.wordImportance[category].set(word, importance);
+                    });
+                });
+            }
+            
+            /**
+             * Learn context patterns from teacher data
+             */
+            learnContextPatterns(teacherData) {
+                teacherData.forEach(example => {
+                    const { text, category } = example;
+                    if (!this.categories.includes(category)) return;
+                    
+                    const words = this.extractWords(text);
+                    
+                    // Create n-grams for context
+                    for (let i = 0; i < words.length - 1; i++) {
+                        const ngram = words.slice(i, i + this.contextWindowSize).join(' ');
+                        this.contextPatterns[category].push(ngram);
+                    }
+                });
+            }
+            
+            /**
+             * Learn negation patterns
+             */
+            learnNegationPatterns(teacherData) {
+                const negationWords = ['ない', 'なかった', 'できない', 'しない', 'しなかった'];
+                
+                teacherData.forEach(example => {
+                    const { text, category } = example;
+                    if (!this.categories.includes(category)) return;
+                    
+                    negationWords.forEach(negWord => {
+                        if (text.includes(negWord)) {
+                            this.negationPatterns[category].add(negWord);
+                        }
+                    });
+                });
+            }
+            
+            /**
+             * Classify text using learned patterns
+             */
+            classifyText(text) {
+                const scores = {};
+                
+                // Initialize scores
+                this.categories.forEach(category => {
+                    scores[category] = 0;
+                });
+                
+                // Base pattern matching
+                this.categories.forEach(category => {
+                    this.categoryPatterns[category].forEach((weight, pattern) => {
+                        const regex = new RegExp(pattern, 'gi');
+                        const matches = text.match(regex);
+                        if (matches) {
+                            scores[category] += weight * matches.length;
+                        }
+                    });
+                });
+                
+                // Word importance scoring
+                const words = this.extractWords(text);
+                words.forEach(word => {
+                    this.categories.forEach(category => {
+                        const importance = this.wordImportance[category].get(word) || 0;
+                        scores[category] += importance * 10; // Scale factor
+                    });
+                });
+                
+                // Context pattern scoring
+                this.categories.forEach(category => {
+                    this.contextPatterns[category].forEach(pattern => {
+                        if (text.includes(pattern)) {
+                            scores[category] += 0.5;
+                        }
+                    });
+                });
+                
+                // Apply category weights
+                this.categories.forEach(category => {
+                    scores[category] *= this.categoryWeights[category];
+                });
+                
+                // Find best category
+                let bestCategory = 'その他';
+                let bestScore = 0;
+                
+                Object.entries(scores).forEach(([category, score]) => {
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestCategory = category;
+                    }
+                });
+                
+                return {
+                    category: bestCategory,
+                    score: bestScore,
+                    scores: scores
+                };
+            }
+            
+            /**
+             * Learn from user feedback
+             */
+            learnFromFeedback(text, correctCategory, predictedCategory) {
+                if (!this.categories.includes(correctCategory)) return;
+                
+                // Increase weight for correct category
+                this.categoryWeights[correctCategory] += this.learningRate;
+                
+                // Decrease weight for incorrect category
+                if (predictedCategory !== correctCategory) {
+                    this.categoryWeights[predictedCategory] -= this.learningRate * 0.5;
+                }
+                
+                // Ensure weights don't go below minimum
+                this.categories.forEach(category => {
+                    this.categoryWeights[category] = Math.max(0.1, this.categoryWeights[category]);
+                });
+                
+                // Learn new patterns from correct classification
+                const words = this.extractWords(text);
+                words.forEach(word => {
+                    const currentImportance = this.wordImportance[correctCategory].get(word) || 0;
+                    this.wordImportance[correctCategory].set(word, currentImportance + this.learningRate);
+                });
+                
+                // Save updated model
+                this.saveModel();
+            }
+            
+            /**
+             * Save model to localStorage
+             */
+            saveModel() {
+                const model = {
+                    categoryWeights: this.categoryWeights,
+                    wordImportance: this.serializeMapStructure(this.wordImportance),
+                    contextPatterns: this.contextPatterns,
+                    negationPatterns: this.serializeSetStructure(this.negationPatterns)
+                };
+                
+                localStorage.setItem('petFoodTeacherModel', JSON.stringify(model));
+            }
+            
+            /**
+             * Load model from localStorage
+             */
+            loadModel() {
+                const savedModel = localStorage.getItem('petFoodTeacherModel');
+                if (!savedModel) return;
+                
+                try {
+                    const model = JSON.parse(savedModel);
+                    
+                    if (model.categoryWeights) {
+                        this.categoryWeights = model.categoryWeights;
+                    }
+                    
+                    if (model.wordImportance) {
+                        this.wordImportance = this.deserializeMapStructure(model.wordImportance);
+                    }
+                    
+                    if (model.contextPatterns) {
+                        this.contextPatterns = model.contextPatterns;
+                    }
+                    
+                    if (model.negationPatterns) {
+                        this.negationPatterns = this.deserializeSetStructure(model.negationPatterns);
+                    }
+                } catch (e) {
+                    console.error('Error loading model:', e);
+                }
+            }
+            
+            /**
+             * Serialize Map structure for storage
+             */
+            serializeMapStructure(mapStructure) {
+                const serialized = {};
+                Object.keys(mapStructure).forEach(key => {
+                    serialized[key] = Object.fromEntries(mapStructure[key]);
+                });
+                return serialized;
+            }
+            
+            /**
+             * Deserialize Map structure from storage
+             */
+            deserializeMapStructure(serialized) {
+                const mapStructure = {};
+                Object.keys(serialized).forEach(key => {
+                    mapStructure[key] = new Map(Object.entries(serialized[key]));
+                });
+                return mapStructure;
+            }
+            
+            /**
+             * Serialize Set structure for storage
+             */
+            serializeSetStructure(setStructure) {
+                const serialized = {};
+                Object.keys(setStructure).forEach(key => {
+                    serialized[key] = Array.from(setStructure[key]);
+                });
+                return serialized;
+            }
+            
+            /**
+             * Deserialize Set structure from storage
+             */
+            deserializeSetStructure(serialized) {
+                const setStructure = {};
+                Object.keys(serialized).forEach(key => {
+                    setStructure[key] = new Set(serialized[key]);
+                });
+                return setStructure;
+            }
+        }
+        
+        // Initialize teacher learning system
+        let teacherLearningSystem = new PetFoodTeacherLearning();
+        
+        // 既存の分類関数を強化
+        const originalDetectLabelsFromConfigV2 = detectLabelsFromConfigV2;
+        
+        function detectLabelsFromConfigV2Enhanced(reviewText) {
+            // 既存のルールベース分類
+            const ruleResult = originalDetectLabelsFromConfigV2(reviewText);
+            
+            // 教師学習システムによる分類
+            const learningResult = teacherLearningSystem.classifyText(reviewText);
+            
+            // 結果の統合（学習システムの結果を優先）
+            if (learningResult.score > 5) {
+                return learningResult.category;
+            }
+            
+            return ruleResult;
+        }
+        
+        // 既存の分類関数を置き換え
+        detectLabelsFromConfigV2 = detectLabelsFromConfigV2Enhanced;
+        
+        // 教師データアップロード用UIを追加
+        function addTeacherLearningUI() {
+            const uiHTML = `
+            <div id="teacher-learning-section" style="margin: 20px 0; padding: 20px; border: 2px solid #4CAF50; border-radius: 10px; background-color: #f0f8ff;">
+                <h3 style="color: #2c5aa0;">🎓 教師データ学習システム</h3>
+                
+                <div id="teacher-data-upload" style="margin: 15px 0;">
+                    <label for="teacher-file" style="font-weight: bold;">教師データファイル（Excel）をアップロード：</label>
+                    <input type="file" id="teacher-file" accept=".xlsx,.xls" style="margin: 10px 0;">
+                    <button id="process-teacher-data" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        教師データを処理
+                    </button>
+                </div>
+                
+                <div id="model-management" style="margin: 15px 0;">
+                    <button id="save-model" style="padding: 8px 15px; margin: 5px; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        モデルを保存
+                    </button>
+                    <button id="reset-model" style="padding: 8px 15px; margin: 5px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        モデルをリセット
+                    </button>
+                    <button id="export-model" style="padding: 8px 15px; margin: 5px; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        モデルをエクスポート
+                    </button>
+                </div>
+                
+                <div id="learning-status" style="margin: 15px 0; padding: 10px; background-color: #e8f5e9; border-radius: 5px; display: none;">
+                    <p style="margin: 0; color: #2e7d32;"></p>
+                </div>
+                
+                <div id="accuracy-display" style="margin: 15px 0; padding: 10px; background-color: #fff3e0; border-radius: 5px; display: none;">
+                    <p style="margin: 0; color: #e65100;"><strong>分類精度:</strong> <span id="accuracy-value">-</span></p>
+                </div>
+            </div>
+            `;
+            
+            // Insert after the main title
+            const mainTitle = document.querySelector('h1');
+            if (mainTitle) {
+                mainTitle.insertAdjacentHTML('afterend', uiHTML);
+                setupTeacherLearningListeners();
+            }
+        }
+        
+        // イベントリスナーの設定
+        function setupTeacherLearningListeners() {
+            // 教師データ処理
+            document.getElementById('process-teacher-data').addEventListener('click', () => {
+                const fileInput = document.getElementById('teacher-file');
+                if (fileInput.files.length === 0) {
+                    alert('ファイルを選択してください。');
+                    return;
+                }
+                
+                processTeacherDataFile(fileInput.files[0]);
+            });
+            
+            // モデル保存
+            document.getElementById('save-model').addEventListener('click', () => {
+                teacherLearningSystem.saveModel();
+                showStatus('モデルが保存されました。');
+            });
+            
+            // モデルリセット
+            document.getElementById('reset-model').addEventListener('click', () => {
+                if (confirm('モデルをリセットしますか？')) {
+                    localStorage.removeItem('petFoodTeacherModel');
+                    teacherLearningSystem = new PetFoodTeacherLearning();
+                    showStatus('モデルがリセットされました。');
+                }
+            });
+            
+            // モデルエクスポート
+            document.getElementById('export-model').addEventListener('click', () => {
+                const modelData = localStorage.getItem('petFoodTeacherModel');
+                if (modelData) {
+                    const blob = new Blob([modelData], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'pet-food-teacher-model.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showStatus('モデルがエクスポートされました。');
+                } else {
+                    alert('エクスポートするモデルがありません。');
+                }
+            });
+        }
+        
+        // ステータス表示
+        function showStatus(message) {
+            const statusDiv = document.getElementById('learning-status');
+            const statusP = statusDiv.querySelector('p');
+            statusP.textContent = message;
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 精度表示
+        function showAccuracy(accuracy) {
+            const accuracyDiv = document.getElementById('accuracy-display');
+            const accuracyValue = document.getElementById('accuracy-value');
+            accuracyValue.textContent = (accuracy * 100).toFixed(1) + '%';
+            accuracyDiv.style.display = 'block';
+        }
+        
+        // 教師データファイルの処理
+        function processTeacherDataFile(file) {
+            showStatus('教師データを処理中...');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // データをパース（A列：テキスト、B列：ラベル）
+                    const teacherData = [];
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row[0] && row[1]) {
+                            teacherData.push({
+                                text: String(row[0]),
+                                category: String(row[1])
+                            });
+                        }
+                    }
+                    
+                    if (teacherData.length === 0) {
+                        alert('有効な教師データが見つかりません。');
+                        return;
+                    }
+                    
+                    // 教師データで学習
+                    teacherLearningSystem.processTeacherData(teacherData);
+                    
+                    // 精度テスト
+                    let correct = 0;
+                    teacherData.forEach(example => {
+                        const predicted = teacherLearningSystem.classifyText(example.text);
+                        if (predicted.category === example.category) {
+                            correct++;
+                        }
+                    });
+                    
+                    const accuracy = correct / teacherData.length;
+                    showAccuracy(accuracy);
+                    showStatus(`教師データ ${teacherData.length} 件で学習完了。精度: ${(accuracy * 100).toFixed(1)}%`);
+                    
+                } catch (error) {
+                    console.error('Error processing teacher data:', error);
+                    alert('教師データの処理中にエラーが発生しました。');
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // ページ読み込み時にUIを追加
+        document.addEventListener('DOMContentLoaded', function() {
+            // 既存の初期化処理を実行してからUIを追加
+            setTimeout(() => {
+                addTeacherLearningUI();
+            }, 100);
+        });
     </script>
 </body>
 </html>
