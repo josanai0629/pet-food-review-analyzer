@@ -27,9 +27,16 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Review text or batch reviews required' });
   }
 
-  // APIキーの確認
+  // APIキーの確認（デバッグ用ログ追加）
+  console.log('Environment variables check:', {
+    hasApiKey: !!process.env.OPENAI_API_KEY,
+    keyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 7) + '...' : 'NOT_FOUND',
+    nodeEnv: process.env.NODE_ENV
+  });
+  
   if (!process.env.OPENAI_API_KEY) {
     console.error('OPENAI_API_KEY not found in environment variables');
+    console.error('Available env vars:', Object.keys(process.env));
     return res.status(500).json({ error: 'OpenAI API key not configured' });
   }
 
