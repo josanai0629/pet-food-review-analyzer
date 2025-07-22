@@ -184,8 +184,18 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
       // JSON形式で返される想定
       const sentimentData = JSON.parse(result);
       
+      // 英語→カタカナ変換
+      const labelMapping = {
+        'Positive': 'ポジティブ',
+        'Negative': 'ネガティブ', 
+        'Neutral': 'ニュートラル'
+      };
+      
+      const originalLabel = sentimentData.label || 'Neutral';
+      const japaneseLabel = labelMapping[originalLabel] || originalLabel;
+      
       return {
-        sentiment: sentimentData.label || 'Neutral',
+        sentiment: japaneseLabel,
         score: sentimentData.score || 0,
         reason: sentimentData.reason || '分析結果なし',
         model: 'gpt-4o-mini'
@@ -201,8 +211,16 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
       const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
       const reason = lines.find(line => line.includes('reason'))?.split(':')[1]?.trim() || '解析エラー';
       
+      // 英語→カタカナ変換（フォールバック用）
+      const labelMapping = {
+        'Positive': 'ポジティブ',
+        'Negative': 'ネガティブ', 
+        'Neutral': 'ニュートラル'
+      };
+      const japaneseLabel = labelMapping[sentiment] || sentiment;
+      
       return {
-        sentiment: sentiment,
+        sentiment: japaneseLabel,
         score: score,
         reason: reason,
         model: 'gpt-4o-mini',
