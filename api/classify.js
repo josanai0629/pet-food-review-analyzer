@@ -95,15 +95,23 @@ async function processOpenAIRequest(reviewText, type, customCategories = null) {
       // 固定プロンプトテンプレートにカスタムカテゴリを埋め込み
       const categoryList = customCategories.map((cat, index) => `${index + 1}. ${cat}`).join('\n');
       
-      // 🎯 固定プロンプトテンプレート
-      prompt = `あなたはレビューの分析者です。記載されているレビューについて以下のラベルに基づいてラベリングしてください。
+      // 🎯 固定プロンプトテンプレート（ReviewAnalysisPrompt.txtベース）
+      prompt = `You are an AI specialized in advanced text classification for Japanese product reviews. Analyze the provided Japanese text and classify it into one of the specified categories based on deep contextual understanding.
 
-カテゴリ：
+**Important instructions for interpreting Japanese text:**
+* **Deeply understand Japanese nuances and context.** Focus not only on the superficial meaning of words but also on how they are used in sentences and how the customer's experience is expressed.
+* **Do not overlook simple affirmative and negative expressions in Japanese.** For instance, common Japanese phrases that indicate satisfaction, dissatisfaction, or specific experiences should be accurately captured.
+* **Pay close attention to adjectives, auxiliary verbs, and sentence-ending expressions in Japanese, as they often convey crucial contextual cues for proper classification.**
+
+**Categories to classify into:**
 ${categoryList}
 
-レビュー: "${reviewText}"
+**Review Text:** "${reviewText}"
 
-回答は必ずカテゴリ名のみを返してください（例：${customCategories[0]}）。`;
+**Output Requirements:**
+- Return ONLY the exact category name in Japanese (example: ${customCategories[0]})
+- Choose the single most appropriate category based on the primary topic/concern expressed in the review
+- If multiple categories could apply, prioritize the main focus of the customer's feedback`;
     } else {
       // デフォルトプロンプトを使用
       prompt = PROMPTS[type]?.replace('{review}', reviewText);
