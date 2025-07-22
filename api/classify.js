@@ -85,16 +85,18 @@ module.exports = async function handler(req, res) {
 }
 
 /**
- * OpenAI APIリクエスト処理（カスタムカテゴリ対応）
+ * OpenAI APIリクエスト処理（カスタムカテゴリ対応・固定テンプレート）
  */
 async function processOpenAIRequest(reviewText, type, customCategories = null) {
   let prompt;
   
-  if (type === 'classification' && customCategories && customCategories.length > 0) {
-    // カスタムカテゴリでプロンプトを動的生成
-    const categoryList = customCategories.map((cat, index) => `${index + 1}. ${cat}`).join('\n');
-    prompt = `あなたはペットフードレビューの分類専門家です。
-以下のレビューを、指定されたカテゴリのいずれか1つに分類してください。
+  if (type === 'classification') {
+    if (customCategories && customCategories.length > 0) {
+      // 固定プロンプトテンプレートにカスタムカテゴリを埋め込み
+      const categoryList = customCategories.map((cat, index) => `${index + 1}. ${cat}`).join('\n');
+      
+      // 🎯 固定プロンプトテンプレート
+      prompt = `あなたはレビューの分析者です。記載されているレビューについて以下のラベルに基づいてラベリングしてください。
 
 カテゴリ：
 ${categoryList}
@@ -102,14 +104,20 @@ ${categoryList}
 レビュー: "${reviewText}"
 
 回答は必ずカテゴリ名のみを返してください（例：${customCategories[0]}）。`;
+    } else {
+      // デフォルトプロンプトを使用
+      prompt = PROMPTS[type]?.replace('{review}', reviewText);
+    }
   } else {
-    // デフォルトプロンプトを使用
+    // センチメント分析等はデフォルトプロンプト
     prompt = PROMPTS[type]?.replace('{review}', reviewText);
   }
   
   if (!prompt) {
     throw new Error(`Unknown request type: ${type}`);
   }
+  
+  console.log(`🤖 Generated prompt preview: ${prompt.substring(0, 200)}...`);
 
   console.log(`🤖 OpenAI API request - Type: ${type}, Length: ${reviewText.length}`);
 

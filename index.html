@@ -325,6 +325,7 @@
 賞味期限
 ジッパー
 その他</textarea>
+            
         </div>
         
         <!-- A/Bテスト機能 -->
@@ -1411,7 +1412,7 @@
             if (!reviewText) return 'その他';
             
             try {
-                // UIからカテゴリを取得
+                // UIからカテゴリのみ取得
                 const categoryInput = document.getElementById('categoryInput');
                 const customCategories = categoryInput.value.trim().split('\n').filter(cat => cat.trim());
                 
@@ -1423,7 +1424,7 @@
                     body: JSON.stringify({
                         review: reviewText,
                         type: 'classification',
-                        categories: customCategories // カスタムカテゴリを送信
+                        categories: customCategories // カスタムカテゴリのみ送信
                     })
                 });
 
