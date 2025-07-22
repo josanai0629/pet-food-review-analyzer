@@ -1626,9 +1626,9 @@
                 console.log('1行目データ:', rawData[1]);
                 console.log('2行目データ:', rawData[2]);
                 
-                let headers = [...rawData[0], 'L列_ラベル', 'M列_年', 'N列_月', 'O列_年月', 'P列_センチメント', 'Q列_クォーター'];
+                let headers = [...rawData[0], 'L列_ラベル', 'M列_年', 'N列_月', 'O列_年月', 'P列_クォーター', 'Q列_センチメント（ラベル）', 'R列_センチメント（スコア）', 'S列_センチメント（理由）'];
                 if (abTestEnabled) {
-                    headers.push('R列_従来版ラベル', 'S列_比較結果');
+                    headers.push('T列_従来版ラベル', 'U列_比較結果');
                 }
                 processedData = [headers];
                 
@@ -1654,9 +1654,8 @@
                     const enhancedLabels = await detectLabelsFromConfigV2(reviewText);
                     const sentimentData = await analyzeSentimentOpenAI(reviewText);
                     
-                    const sentimentFormatted = `ラベル: ${sentimentData.label}\\nスコア: ${sentimentData.score}\\n理由: ${sentimentData.reason}`;
-                    
-                    let newRow = [...row, enhancedLabels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, sentimentFormatted, dateInfo.quarter];
+                    // P列：クォーター, Q列：センチメント（ラベル）, R列：センチメント（スコア）, S列：センチメント（理由）
+                    let newRow = [...row, enhancedLabels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, dateInfo.quarter, sentimentData.label, sentimentData.score, sentimentData.reason];
                     
                     // A/Bテストモード (現在は無効)
                     if (abTestEnabled) {
