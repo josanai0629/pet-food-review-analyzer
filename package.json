@@ -16,6 +16,9 @@
   ],
   "author": "josanai0629",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/josanai0629/pet-food-review-analyzer.git"
