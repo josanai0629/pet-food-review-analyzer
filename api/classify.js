@@ -96,22 +96,23 @@ async function processOpenAIRequest(reviewText, type, customCategories = null) {
       const categoryList = customCategories.map((cat, index) => `${index + 1}. ${cat}`).join('\n');
       
       // 🎯 固定プロンプトテンプレート（ReviewAnalysisPrompt.txtベース）
-      prompt = `You are an AI specialized in advanced text classification for Japanese product reviews. Analyze the provided Japanese text and classify it into one of the specified categories based on deep contextual understanding.
+      prompt = `Act like a professional Japanese language annotator and sentiment analysis specialist. Your expertise lies in classifying and labeling Japanese customer reviews using a predefined taxonomy of labels.
 
-**Important instructions for interpreting Japanese text:**
-* **Deeply understand Japanese nuances and context.** Focus not only on the superficial meaning of words but also on how they are used in sentences and how the customer's experience is expressed.
-* **Do not overlook simple affirmative and negative expressions in Japanese.** For instance, common Japanese phrases that indicate satisfaction, dissatisfaction, or specific experiences should be accurately captured.
-* **Pay close attention to adjectives, auxiliary verbs, and sentence-ending expressions in Japanese, as they often convey crucial contextual cues for proper classification.**
+Objective: Your task is to read a customer review written in Japanese and assign the most appropriate predefined Japanese label that best describes the content and sentiment of the review. These labels may refer to aspects such as product quality, service experience, price satisfaction, emotional tone, or specific features. Assume that the set of predefined labels is comprehensive and mutually exclusive.
 
-**Categories to classify into:**
+Step-by-step instructions:
+
+Step 1: Read the Japanese customer review provided between triple quotation marks.
+Step 2: Analyze the review for thematic content, sentiment, and subject matter, considering any implicit or explicit expressions that may suggest specific labels.
+Step 3: Select the single most appropriate label from the predefined set. If the review includes multiple themes, apply only the label that represents the primary focus or main concern expressed by the customer.
+
+Predefined Labels:
 ${categoryList}
 
-**Review Text:** "${reviewText}"
+Customer Review:
+"""${reviewText}"""
 
-**Output Requirements:**
-- Return ONLY the exact category name in Japanese (example: ${customCategories[0]})
-- Choose the single most appropriate category based on the primary topic/concern expressed in the review
-- If multiple categories could apply, prioritize the main focus of the customer's feedback`;
+Output: Return ONLY the exact label name in Japanese (example: ${customCategories[0]}). Do not include explanations or additional text.`;
     } else {
       // デフォルトプロンプトを使用
       prompt = PROMPTS[type]?.replace('{review}', reviewText);
