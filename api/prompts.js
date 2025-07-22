@@ -3,7 +3,7 @@
  * プロンプトを柔軟に変更できるように管理
  */
 
-export const PROMPTS = {
+const PROMPTS = {
   // ラベル付け（10カテゴリ分類）プロンプト
   classification: `あなたはペットフードレビューの分類専門家です。
 以下のレビューを、指定された10カテゴリのいずれか1つに分類してください。
@@ -45,10 +45,10 @@ Review: "{review}"`
 };
 
 // プロンプトのバージョン管理
-export const PROMPT_VERSION = "1.0.0";
+const PROMPT_VERSION = "1.0.0";
 
 // カテゴリ定義（参照用）
-export const CATEGORIES = [
+const CATEGORIES = [
   '食べる',
   '食べない',
   '吐く・便が悪くなる',
@@ -60,3 +60,6 @@ export const CATEGORIES = [
   'ジッパー',
   'その他'
 ];
+
+// CommonJS exports
+module.exports = { PROMPTS, CATEGORIES, PROMPT_VERSION };
