@@ -298,8 +298,33 @@
         <h1>ペットフードレビュー分析ツール</h1>
         
         <div class="accuracy-info">
-            <strong>🚀 高精度ラベリングシステム v5.2 - 教師データ準拠版</strong><span class="accuracy-badge">教師データ準拠</span><br>
-            Phase 5.2: 教師データ比較による緊急修正 - 過剰分類・検出不足を大幅改善
+            <strong>🤖 OpenAI API統合版 - 高精度分類システム</strong><span class="accuracy-badge">OpenAI統合</span><br>
+            GPT-4o-mini による文脈理解とカスタマイズ可能なカテゴリ分類
+        </div>
+        
+        <!-- 🎯 カテゴリ設定セクション -->
+        <div class="accuracy-info" style="background-color: #f3e5f5; border-color: #9c27b0;">
+            <strong>🎯 カテゴリ設定</strong><span class="accuracy-badge" style="background-color: #9c27b0;">カスタム</span><br>
+            <label for="categoryInput">分類カテゴリを設定してください（1行1カテゴリ）：</label>
+            <textarea id="categoryInput" rows="8" style="width: 100%; margin-top: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-family: monospace;" placeholder="食べる
+食べない
+吐く・便が悪くなる
+吐き戻し・便の改善
+値上がり/高い
+安い
+配送・梱包
+賞味期限
+ジッパー
+その他">食べる
+食べない
+吐く・便が悪くなる
+吐き戻し・便の改善
+値上がり/高い
+安い
+配送・梱包
+賞味期限
+ジッパー
+その他</textarea>
         </div>
         
         <!-- A/Bテスト機能 -->
@@ -1381,11 +1406,15 @@
             return detectLabelsEnhanced(reviewText, context);
         }
 
-        // 🤖 OpenAI API統合: 新しい分類関数
+        // 🤖 OpenAI API統合: 新しい分類関数（カスタムカテゴリ対応）
         async function detectLabels(reviewText) {
             if (!reviewText) return 'その他';
             
             try {
+                // UIからカテゴリを取得
+                const categoryInput = document.getElementById('categoryInput');
+                const customCategories = categoryInput.value.trim().split('\n').filter(cat => cat.trim());
+                
                 const response = await fetch('/api/classify', {
                     method: 'POST',
                     headers: {
@@ -1393,7 +1422,8 @@
                     },
                     body: JSON.stringify({
                         review: reviewText,
-                        type: 'classification'
+                        type: 'classification',
+                        categories: customCategories // カスタムカテゴリを送信
                     })
                 });
 

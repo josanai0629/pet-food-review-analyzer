@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { review, type = 'classification', batchReviews } = req.body;
+  const { review, type = 'classification', batchReviews, categories } = req.body;
   
   // 入力検証
   if (!review && !batchReviews) {
@@ -49,7 +49,7 @@ module.exports = async function handler(req, res) {
       for (let i = 0; i < batchReviews.length; i++) {
         const batchReview = batchReviews[i];
         try {
-          const result = await processOpenAIRequest(batchReview.text, type);
+          const result = await processOpenAIRequest(batchReview.text, type, categories);
           results.push({
             id: batchReview.id || i,
             ...result
@@ -72,7 +72,7 @@ module.exports = async function handler(req, res) {
     }
 
     // 単一レビューの処理
-    const result = await processOpenAIRequest(review, type);
+    const result = await processOpenAIRequest(review, type, categories);
     return res.status(200).json(result);
 
   } catch (error) {
@@ -85,10 +85,27 @@ module.exports = async function handler(req, res) {
 }
 
 /**
- * OpenAI APIリクエスト処理
+ * OpenAI APIリクエスト処理（カスタムカテゴリ対応）
  */
-async function processOpenAIRequest(reviewText, type) {
-  const prompt = PROMPTS[type]?.replace('{review}', reviewText);
+async function processOpenAIRequest(reviewText, type, customCategories = null) {
+  let prompt;
+  
+  if (type === 'classification' && customCategories && customCategories.length > 0) {
+    // カスタムカテゴリでプロンプトを動的生成
+    const categoryList = customCategories.map((cat, index) => `${index + 1}. ${cat}`).join('\n');
+    prompt = `あなたはペットフードレビューの分類専門家です。
+以下のレビューを、指定されたカテゴリのいずれか1つに分類してください。
+
+カテゴリ：
+${categoryList}
+
+レビュー: "${reviewText}"
+
+回答は必ずカテゴリ名のみを返してください（例：${customCategories[0]}）。`;
+  } else {
+    // デフォルトプロンプトを使用
+    prompt = PROMPTS[type]?.replace('{review}', reviewText);
+  }
   
   if (!prompt) {
     throw new Error(`Unknown request type: ${type}`);
@@ -127,11 +144,13 @@ async function processOpenAIRequest(reviewText, type) {
   if (type === 'classification') {
     const category = result.trim();
     
-    // カテゴリの妥当性チェック
-    if (!CATEGORIES.includes(category)) {
-      console.warn(`Unknown category returned: ${category}, defaulting to その他`);
+    // カスタムカテゴリがある場合はそれで検証、なければデフォルトカテゴリで検証
+    const validCategories = customCategories && customCategories.length > 0 ? customCategories : CATEGORIES;
+    
+    if (!validCategories.includes(category)) {
+      console.warn(`Unknown category returned: ${category}, defaulting to ${validCategories[validCategories.length - 1]}`);
       return { 
-        category: 'その他',
+        category: validCategories[validCategories.length - 1], // 最後のカテゴリ（通常は「その他」）
         confidence: 0.5,
         original_response: category
       };
