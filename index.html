@@ -1142,25 +1142,12 @@
             return 'その他';
         }
 
-        // 🎯 Phase 4用完全版ラベル検出（階層的分類対応）
-        function detectLabelsFromConfigV2(reviewText) {
+        // 🤖 OpenAI API統合: 新しい完全版ラベル検出
+        async function detectLabelsFromConfigV2(reviewText) {
             if (!reviewText) return 'その他';
             
-            // 1. 文脈分析
-            const context = analyzeReviewContext(reviewText);
-            
-            // 2. 強化版スコアリング
-            const scores = calculateLabelScoresEnhanced(reviewText, context);
-            
-            // 3. 階層的分類判定
-            const hierarchicalResult = classifyHierarchically(reviewText, scores);
-            if (hierarchicalResult !== 'その他') return hierarchicalResult;
-            
-            // 4. フォールバック: 従来版判定
-            const traditionalResult = detectLabels(reviewText);
-            if (traditionalResult !== 'その他') return traditionalResult;
-            
-            return 'その他';
+            // OpenAI APIを使用した分類
+            return await detectLabels(reviewText);
         }
 
         // 🎯 新機能: キーワードスコアリング関数（Phase 2用）
@@ -1394,46 +1381,66 @@
             return detectLabelsEnhanced(reviewText, context);
         }
 
-        // 既存のdetectLabels関数（後方互換性のため保持）
-        function detectLabels(reviewText) {
+        // 🤖 OpenAI API統合: 新しい分類関数
+        async function detectLabels(reviewText) {
             if (!reviewText) return 'その他';
-            const text = String(reviewText).toLowerCase();
             
-            if (text.match(/配送|梱包|発送|届[きいくけ]|とど[きいくけ]|到着|包装|配達|宅配|荷物|箱|段ボール|ダンボール/)) {
-                return '配送・梱包';
+            try {
+                const response = await fetch('/api/classify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        review: reviewText,
+                        type: 'classification'
+                    })
+                });
+
+                if (!response.ok) {
+                    console.error('API error:', await response.text());
+                    return 'その他';
+                }
+
+                const data = await response.json();
+                return data.category || 'その他';
+            } catch (error) {
+                console.error('Classification error:', error);
+                return 'その他';
             }
+        }
+
+        // 🤖 OpenAI API統合: 新しいセンチメント分析関数
+        async function analyzeSentimentOpenAI(reviewText) {
+            if (!reviewText) return { label: 'Neutral', score: 0, reason: '空のテキスト' };
             
-            if (text.match(/値上[げがり]|値段.{0,5}上が|価格.{0,5}上が|高くな[っり]|値段.{0,5}高[いくめ]|高価|高額|高すぎ|たか[いく]|高い/)) {
-                return '値上がり/高い';
+            try {
+                const response = await fetch('/api/classify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        review: reviewText,
+                        type: 'sentiment'
+                    })
+                });
+
+                if (!response.ok) {
+                    console.error('Sentiment API error:', await response.text());
+                    return { label: 'Neutral', score: 0, reason: 'API エラー' };
+                }
+
+                const data = await response.json();
+                return {
+                    label: data.sentiment || 'Neutral',
+                    score: data.score || 0,
+                    reason: data.reason || '分析完了'
+                };
+            } catch (error) {
+                console.error('Sentiment analysis error:', error);
+                return { label: 'Neutral', score: 0, reason: 'エラー発生' };
             }
-            if (text.match(/安[いくめ]|やす[いくめ]|安価|お得|リーズナブル|コスパ|手頃|手ごろ|低価格|割安|お買い得/)) {
-                return '安い';
-            }
-            
-            if (text.match(/賞味期限|消費期限|期限|日付|使用期限|有効期限/)) {
-                return '賞味期限';
-            }
-            
-            if (text.match(/ジッパー|チャック|密封|ジップ|保存.{0,10}(不便|困|できない)|袋.{0,10}(閉|締)|ファスナー/)) {
-                return 'ジッパー';
-            }
-            
-            if (text.match(/(吐|はく|嘔吐|吐き戻し).{0,20}(減[ったり]|なくな[ったり]|しなくな[ったり]|改善|良くな[ったり]|減少|治[ったまり])|便.{0,20}(良[くいか]な[ったり]|改善|調子が良|快調|しっかり|正常)|うんち.{0,20}(良[くいか]な[ったり]|改善|しっかり)|毛玉.{0,20}(減[ったり]|なくな[ったり]|少な[くい])/)) {
-                return '吐き戻し・便の改善';
-            }
-            if (text.match(/吐[くいたきけ]|はく|嘔吐|吐き戻[しすり]|もど[すし]|下痢|げり|便.{0,5}[緩悪臭]|うんち.{0,10}[緩悪臭]|軟便|血便|便秘|べんぴ/) && 
-                !text.match(/(減[ったり]|なくな[ったり]|しなくな[ったり]|改善|良くな[ったり])/)) {
-                return '吐く・便が悪くなる';
-            }
-            
-            if (text.match(/食べ(てくれ)?な[いかくけ]|食べ.{0,5}くれな[いかくけ]|食いつ[かきく].{0,5}(悪|ない|ダメ)|残[すしちり]|拒否|口にしない|見向きもしない|匂いを嗅[いぐ]だだけ|そっぽ|興味.{0,5}示さな/)) {
-                return '食べない';
-            }
-            if (text.match(/食べ[るてたり]|たべ[るてたり]|食いつ[きくいが].{0,5}(良|いい|よ[いくか])|完食|美味[しそ]|おいし|喜んで.{0,5}食べ|バクバク|ペロリ|がっつ[きくい]|夢中|よく食べ|大好き|お気に入り/)) {
-                return '食べる';
-            }
-            
-            return 'その他';
         }
 
         function analyzeSentiment(reviewText) {
@@ -1612,18 +1619,18 @@
                     
                     const dateInfo = parseDate(reviewDate);
                     
-                    // 🎯 Phase 4: 完全版システム適用
-                    const enhancedLabels = detectLabelsFromConfigV2(reviewText);
-                    const sentimentData = analyzeSentiment(reviewText);
+                    // 🤖 OpenAI API統合: 新しいシステム適用
+                    const enhancedLabels = await detectLabelsFromConfigV2(reviewText);
+                    const sentimentData = await analyzeSentimentOpenAI(reviewText);
                     
                     const sentimentFormatted = `ラベル: ${sentimentData.label}\\nスコア: ${sentimentData.score}\\n理由: ${sentimentData.reason}`;
                     
                     let newRow = [...row, enhancedLabels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, sentimentFormatted, dateInfo.quarter];
                     
-                    // A/Bテストモード
+                    // A/Bテストモード (現在は無効)
                     if (abTestEnabled) {
-                        const traditionalLabels = detectLabels(reviewText);
-                        const comparisonResult = enhancedLabels === traditionalLabels ? '一致' : '相違';
+                        const traditionalLabels = 'OpenAI統合により無効';
+                        const comparisonResult = 'OpenAI統合により無効';
                         
                         newRow.push(traditionalLabels, comparisonResult);
                         
@@ -2723,7 +2730,7 @@ class PetFoodTeacherLearning {
         // 既存の分類関数を強化
         const originalDetectLabelsFromConfigV2 = detectLabelsFromConfigV2;
         
-        function detectLabelsFromConfigV2Enhanced(reviewText) {
+        async function detectLabelsFromConfigV2Enhanced(reviewText) {
             // 教師学習システムが学習済みの場合、その結果を優先
             if (teacherLearningSystem.isLearned) {
                 const learningResult = teacherLearningSystem.classifyText(reviewText);
@@ -2735,10 +2742,10 @@ class PetFoodTeacherLearning {
                 }
             }
             
-            // 信頼度が低い場合は既存のルールベース分類を使用
-            const ruleResult = originalDetectLabelsFromConfigV2(reviewText);
-            console.log(`📜 ルールベース結果使用: ${ruleResult}`);
-            return ruleResult;
+            // OpenAI APIを使用
+            const openaiResult = await originalDetectLabelsFromConfigV2(reviewText);
+            console.log(`🤖 OpenAI結果使用: ${openaiResult}`);
+            return openaiResult;
         }
         
         // 既存の分類関数を置き換え
