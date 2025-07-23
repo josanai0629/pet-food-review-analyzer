@@ -1572,11 +1572,7 @@
             document.getElementById('sentimentSummary').style.display = 'block';
         }
 
-        // A/Bテスト用データ保存
-        let abTestResults = {
-            traditional: [],
-            enhanced: []
-        };
+        // A/Bテスト機能は削除済み
         
         // データ処理メイン関数 - Phase 4完全版を適用
         async function processData() {
@@ -1584,7 +1580,7 @@
             const processBtn = document.getElementById('processBtn');
             const downloadBtn = document.getElementById('downloadBtn');
             const visualizeBtn = document.getElementById('visualizeBtn');
-            const abTestEnabled = document.getElementById('enableAbTest').checked;
+            const abTestEnabled = false; // A/Bテスト機能は削除済み
             
             try {
                 processBtn.disabled = true;
@@ -1609,13 +1605,9 @@
                 console.log('2行目データ:', rawData[2]);
                 
                 let headers = [...rawData[0], 'ラベル', '年', '月', '年月', 'クォーター', 'センチメント（ラベル）', 'センチメント（スコア）', 'センチメント（理由）'];
-                if (abTestEnabled) {
-                    headers.push('T列_従来版ラベル', 'U列_比較結果');
-                }
                 processedData = [headers];
                 
                 sentimentDataList = [];
-                abTestResults = { traditional: [], enhanced: [] };
                 
                 const batchSize = 100;
                 const totalRows = rawData.length - 1;
@@ -1639,16 +1631,7 @@
                     // P列：クォーター, Q列：センチメント（ラベル）, R列：センチメント（スコア）, S列：センチメント（理由）
                     let newRow = [...row, enhancedLabels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, dateInfo.quarter, sentimentData.label, sentimentData.score, sentimentData.reason];
                     
-                    // A/Bテストモード (現在は無効)
-                    if (abTestEnabled) {
-                        const traditionalLabels = 'OpenAI統合により無効';
-                        const comparisonResult = 'OpenAI統合により無効';
-                        
-                        newRow.push(traditionalLabels, comparisonResult);
-                        
-                        abTestResults.traditional.push(traditionalLabels);
-                        abTestResults.enhanced.push(enhancedLabels);
-                    }
+                    // A/Bテスト機能は削除済み
                     
                     processedData.push(newRow);
                     sentimentDataList.push(sentimentData);
@@ -1659,10 +1642,7 @@
                     }
                 }
                 
-                let statusMessage = `処理完了！Phase 5.2: 教師データ準拠版+過剰分類・検出不足修正済み`;
-                if (abTestEnabled) {
-                    statusMessage += ` | A/Bテスト実行済み`;
-                }
+                let statusMessage = `処理完了！OpenAI API統合版 - 高精度分類システム`;
                 statusDiv.innerHTML = `<span class="success">${statusMessage}</span>`;
                 
                 downloadBtn.disabled = false;
@@ -1675,10 +1655,7 @@
                 generateAndShowSentimentSummary();
                 showSampleResults();
                 
-                // A/Bテスト結果表示
-                if (abTestEnabled) {
-                    showAbTestResults();
-                }
+                // A/Bテスト機能は削除済み
                 
             } catch (error) {
                 statusDiv.innerHTML = `<span class="error">エラー: ${error.message}</span>`;
@@ -1686,43 +1663,7 @@
             }
         }
         
-        // A/Bテスト結果表示
-        function showAbTestResults() {
-            const sampleDiv = document.getElementById('sampleResults');
-            let html = '<h3>🧪 A/Bテスト結果</h3>';
-            
-            // 一致率計算
-            const total = abTestResults.traditional.length;
-            const matches = abTestResults.traditional.filter((trad, i) => 
-                trad === abTestResults.enhanced[i]
-            ).length;
-            const matchRate = ((matches / total) * 100).toFixed(1);
-            
-            html += `<p><strong>一致率:</strong> ${matchRate}% (${matches}/${total})</p>`;
-            
-            // カテゴリ別比較
-            const categoryComparison = {};
-            abTestResults.traditional.forEach((trad, i) => {
-                const enh = abTestResults.enhanced[i];
-                const key = `${trad} → ${enh}`;
-                categoryComparison[key] = (categoryComparison[key] || 0) + 1;
-            });
-            
-            html += '<p><strong>主な変更パターン:</strong></p><ul>';
-            Object.entries(categoryComparison)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 10)
-                .forEach(([pattern, count]) => {
-                    if (!pattern.includes(' → ')) return;
-                    const [from, to] = pattern.split(' → ');
-                    if (from !== to) {
-                        html += `<li>${pattern}: ${count}件</li>`;
-                    }
-                });
-            html += '</ul>';
-            
-            sampleDiv.innerHTML = html + sampleDiv.innerHTML;
-        }
+        // A/Bテスト機能は削除済み
 
         // 新機能: 分析データの準備
         function prepareAnalysisData() {
