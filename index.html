@@ -1667,7 +1667,7 @@
             retryCount: 3,              // リトライ回数
             timeout: 30000,             // タイムアウト時間(ms)
             maxPreviewLength: 50,       // 進捗表示用レビュープレビュー文字数
-            debugMode: false             // デバッグモード（開発時のみtrue）
+            debugMode: false            // デバッグモード（開発時のみtrue）
         };
         
         // 🔐 通信隠蔽ユーティリティ
@@ -1716,6 +1716,14 @@
                     return obfuscatedData;
                 }
             }
+        };
+        
+        // 🚀 開発者ツール用デバッグモード強制有効化コマンド
+        window.enableDebugMode = function() {
+            PROCESSING_CONFIG.debugMode = true;
+            console.log('🔥 デバッグモードが強制的に有効になりました');
+            console.log('次回の処理からプレーンテキスト通信になります');
+            return 'Debug mode enabled';
         };
         
         // データ処理メイン関数 - バッチ処理 + 進捗UI対応
