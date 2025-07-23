@@ -20,14 +20,38 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { review, type = 'classification', batchReviews, categories, batchId } = req.body;
+  // 🔐 デバッグモード判定
+  const debugMode = req.headers['x-debug-mode'] === 'true';
+  
+  let review, type = 'classification', batchReviews, categories, batchId;
+  
+  if (debugMode) {
+    // デバッグモード: 平文で受信
+    ({ review, type = 'classification', batchReviews, categories, batchId } = req.body);
+    console.log('🔍 [DEBUG] Plain text request received');
+  } else {
+    // 本番モード: 暗号化データを復号化
+    try {
+      const { p, c, t, id } = req.body;
+      
+      if (p) batchReviews = JSON.parse(Buffer.from(p, 'base64').toString('utf-8'));
+      if (c) categories = JSON.parse(Buffer.from(c, 'base64').toString('utf-8'));
+      type = t || 'classification';
+      batchId = id;
+      
+      console.log('🔓 Decrypted request successfully');
+    } catch (decryptError) {
+      console.error('❌ Decryption failed, falling back to plain text:', decryptError);
+      ({ review, type = 'classification', batchReviews, categories, batchId } = req.body);
+    }
+  }
   
   // 入力検証
   if (!review && !batchReviews) {
     return res.status(400).json({ error: 'Review text or batch reviews required' });
   }
   
-  console.log(`🎯 Processing request - Type: ${type}, Batch: ${batchReviews ? batchReviews.length : 0} items, ID: ${batchId || 'single'}`);
+  console.log(`🎯 Processing request - Type: ${type}, Batch: ${batchReviews ? batchReviews.length : 0} items, ID: ${batchId || 'single'}, Debug: ${debugMode}`);
 
   // APIキーの確認（デバッグ用ログ追加）
   console.log('Environment variables check:', {
@@ -88,12 +112,34 @@ module.exports = async function handler(req, res) {
         }
       }
       
-      return res.status(200).json({ results });
+      // 🔐 レスポンス暗号化
+      if (debugMode) {
+        return res.status(200).json({ results });
+      } else {
+        const encryptedResults = Buffer.from(JSON.stringify(results)).toString('base64');
+        return res.status(200).json({ 
+          d: encryptedResults,
+          ts: Date.now(),
+          v: "1.0",
+          s: "ok"
+        });
+      }
     }
 
     // 単一レビューの処理
     const result = await processOpenAIRequest(review, type, categories);
-    return res.status(200).json(result);
+    
+    if (debugMode) {
+      return res.status(200).json(result);
+    } else {
+      const encryptedResult = Buffer.from(JSON.stringify(result)).toString('base64');
+      return res.status(200).json({
+        d: encryptedResult,
+        ts: Date.now(),
+        v: "1.0",
+        s: "ok"
+      });
+    }
 
   } catch (error) {
     console.error('OpenAI API error:', error);
