@@ -349,6 +349,22 @@
             <button onclick="toggleVisualization()" id="visualizeBtn" disabled style="background-color: #2196F3;">📊 可視化表示</button>
         </div>
 
+        <!-- 🎯 進捗表示UI -->
+        <div id="progressSection" style="display: none; margin: 20px 0; padding: 20px; background-color: #f8f9fa; border-radius: 10px; border: 2px solid #4CAF50;">
+            <div class="progress-header" style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span style="font-weight: bold;">📊 処理進捗: <span id="progressCount">0/0</span></span>
+                <span style="font-weight: bold;">⏱️ <span id="elapsedTime">00:00</span></span>
+            </div>
+            <div class="progress-bar" style="width: 100%; background-color: #e0e0e0; border-radius: 10px; height: 20px; margin-bottom: 15px;">
+                <div id="progressFill" style="width: 0%; background-color: #4CAF50; height: 100%; border-radius: 10px; transition: width 0.3s;"></div>
+            </div>
+            <div class="progress-details">
+                <div style="margin-bottom: 5px;">🤖 <span id="currentStatus">準備中...</span></div>
+                <div style="margin-bottom: 5px;">📝 現在処理中: <span id="currentReview">-</span></div>
+                <div>⏳ 推定残り時間: <span id="estimatedTime">計算中...</span></div>
+            </div>
+        </div>
+
         <!-- 新機能: ダッシュボード -->
         <div id="dashboardSection" class="visualization-container" style="display: none;">
             <h2>📊 分析ダッシュボード</h2>
@@ -1389,37 +1405,79 @@
             return detectLabelsEnhanced(reviewText, context);
         }
 
-        // 🤖 OpenAI API統合: 新しい分類関数（カスタムカテゴリ対応）
-        async function detectLabels(reviewText) {
-            if (!reviewText) return 'その他';
+        // 🤖 バッチ処理: 複数レビューを一括処理
+        async function processBatch(reviewBatch, categories, batchId) {
+            // batchIdから処理タイプを判定
+            const isClassification = batchId.includes('classification');
+            const type = isClassification ? 'classification' : 'sentiment';
             
             try {
-                // UIからカテゴリのみ取得
-                const categoryInput = document.getElementById('categoryInput');
-                const customCategories = categoryInput.value.trim().split('\n').filter(cat => cat.trim());
-                
-                const response = await fetch('/api/classify', {
+                const response = await fetch('/api/process', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        review: reviewText,
-                        type: 'classification',
-                        categories: customCategories // カスタムカテゴリのみ送信
+                        batchReviews: reviewBatch,
+                        categories: categories,
+                        batchId: batchId,
+                        type: type
                     })
                 });
 
                 if (!response.ok) {
-                    console.error('API error:', await response.text());
-                    return 'その他';
+                    console.error('Batch API error:', await response.text());
+                    throw new Error(`Batch processing failed: ${response.status}`);
                 }
 
                 const data = await response.json();
-                return data.category || 'その他';
+                return data.results || [];
             } catch (error) {
-                console.error('Classification error:', error);
-                return 'その他';
+                console.error('Batch processing error:', error);
+                throw error;
+            }
+        }
+        
+        // 🔄 進捗UI更新関数
+        function updateProgress(completed, total, currentReview, startTime) {
+            const progressSection = document.getElementById('progressSection');
+            const progressCount = document.getElementById('progressCount');
+            const progressFill = document.getElementById('progressFill');
+            const elapsedTime = document.getElementById('elapsedTime');
+            const currentStatus = document.getElementById('currentStatus');
+            const currentReviewSpan = document.getElementById('currentReview');
+            const estimatedTime = document.getElementById('estimatedTime');
+            
+            progressSection.style.display = 'block';
+            
+            // 進捗更新
+            const percentage = Math.round((completed / total) * 100);
+            progressCount.textContent = `${completed}/${total} (${percentage}%)`;
+            progressFill.style.width = `${percentage}%`;
+            
+            // 経過時間
+            const elapsed = Date.now() - startTime;
+            const minutes = Math.floor(elapsed / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            elapsedTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // 現在の状況
+            if (completed === total) {
+                currentStatus.textContent = '完了！';
+                currentReviewSpan.textContent = '全て処理完了';
+                estimatedTime.textContent = '00:00';
+            } else {
+                currentStatus.textContent = 'OpenAI分析中...';
+                currentReviewSpan.textContent = currentReview ? currentReview.substring(0, PROCESSING_CONFIG.maxPreviewLength) + '...' : '処理中...';
+                
+                // 推定残り時間
+                if (completed > 0) {
+                    const avgTimePerItem = elapsed / completed;
+                    const remainingTime = (total - completed) * avgTimePerItem;
+                    const remMin = Math.floor(remainingTime / 60000);
+                    const remSec = Math.floor((remainingTime % 60000) / 1000);
+                    estimatedTime.textContent = `${remMin.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`;
+                }
             }
         }
 
@@ -1574,7 +1632,17 @@
 
         // A/Bテスト機能は削除済み
         
-        // データ処理メイン関数 - Phase 4完全版を適用
+        // 🎛️ 処理設定（柔軟に変更可能）
+        const PROCESSING_CONFIG = {
+            batchSize: 10,              // バッチサイズ（10件ずつ）
+            reviewTextColumn: 10,       // レビューテキスト列（K列=10、0ベース）
+            batchDelay: 100,            // バッチ間待機時間(ms)
+            retryCount: 3,              // リトライ回数
+            timeout: 30000,             // タイムアウト時間(ms)
+            maxPreviewLength: 50        // 進捗表示用レビュープレビュー文字数
+        };
+        
+        // データ処理メイン関数 - バッチ処理 + 進捗UI対応
         async function processData() {
             const statusDiv = document.getElementById('status');
             const processBtn = document.getElementById('processBtn');
@@ -1609,37 +1677,141 @@
                 
                 sentimentDataList = [];
                 
-                const batchSize = 100;
+                // 🎯 バッチ処理準備
                 const totalRows = rawData.length - 1;
+                const categoryInput = document.getElementById('categoryInput');
+                const customCategories = categoryInput.value.trim().split('\n').filter(cat => cat.trim());
                 
-                for (let i = 1; i < rawData.length; i++) {
-                    const row = rawData[i];
+                console.log(`バッチサイズ: ${PROCESSING_CONFIG.batchSize}, 総行数: ${totalRows}`);
+                
+                // 🚀 バッチ処理開始
+                const startTime = Date.now();
+                const failedItems = [];
+                let processedCount = 0;
+                
+                updateProgress(0, totalRows, null, startTime);
+                
+                for (let i = 1; i < rawData.length; i += PROCESSING_CONFIG.batchSize) {
+                    const batchEnd = Math.min(i + PROCESSING_CONFIG.batchSize, rawData.length);
+                    const currentBatch = [];
                     
-                    const reviewDate = row[1];
-                    const reviewText = row[10];
-                    
-                    if (i <= 5) {
-                        console.log(`${i}行目 - 日付:`, reviewDate, 'レビュー:', reviewText?.substring(0, 50));
+                    // バッチデータ準備
+                    for (let j = i; j < batchEnd; j++) {
+                        const row = rawData[j];
+                        if (!row || row.length === 0) continue;
+                        
+                        const reviewText = String(row[PROCESSING_CONFIG.reviewTextColumn] || '').trim();
+                        const reviewDate = String(row[1] || '').trim();
+                        
+                        if (!reviewText) {
+                            console.warn(`行 ${j}: レビューテキストが空です`);
+                            continue;
+                        }
+                        
+                        currentBatch.push({
+                            id: j,
+                            text: reviewText,
+                            originalRow: row,
+                            date: reviewDate
+                        });
                     }
                     
-                    const dateInfo = parseDate(reviewDate);
+                    if (currentBatch.length === 0) continue;
                     
-                    // 🤖 OpenAI API統合: 新しいシステム適用
-                    const enhancedLabels = await detectLabelsFromConfigV2(reviewText);
-                    const sentimentData = await analyzeSentimentOpenAI(reviewText);
+                    // 現在処理中のレビューを表示用に取得
+                    const currentReviewText = currentBatch[0]?.text || '';
+                    updateProgress(processedCount, totalRows, currentReviewText, startTime);
                     
-                    // P列：クォーター, Q列：センチメント（ラベル）, R列：センチメント（スコア）, S列：センチメント（理由）
-                    let newRow = [...row, enhancedLabels, dateInfo.year, dateInfo.month, dateInfo.yearMonth, dateInfo.quarter, sentimentData.label, sentimentData.score, sentimentData.reason];
+                    // 🤖 バッチ処理実行（分類とセンチメント分析を別々に）
+                    let batchResults = [];
+                    let retryCount = 0;
                     
-                    // A/Bテスト機能は削除済み
-                    
-                    processedData.push(newRow);
-                    sentimentDataList.push(sentimentData);
-                    
-                    if (i % batchSize === 0) {
-                        statusDiv.textContent = `処理中... ${i}/${totalRows} (${Math.round(i/totalRows*100)}%)`;
-                        await new Promise(resolve => setTimeout(resolve, 10));
+                    while (retryCount <= PROCESSING_CONFIG.retryCount) {
+                        try {
+                            console.log(`🔄 バッチ ${Math.floor((i-1)/PROCESSING_CONFIG.batchSize) + 1} 処理中... (${currentBatch.length}件)`);
+                            
+                            // 分類処理
+                            const classificationBatch = currentBatch.map(item => ({id: item.id, text: item.text}));
+                            const classificationResults = await processBatch(classificationBatch, customCategories, `batch-${i}-classification`);
+                            
+                            // センチメント分析処理
+                            const sentimentBatch = currentBatch.map(item => ({id: item.id, text: item.text}));
+                            const sentimentResults = await processBatch(sentimentBatch, [], `batch-${i}-sentiment`);
+                            
+                            // 結果をマージ
+                            batchResults = currentBatch.map(item => {
+                                const classResult = classificationResults.find(r => r.id === item.id);
+                                const sentResult = sentimentResults.find(r => r.id === item.id);
+                                
+                                return {
+                                    id: item.id,
+                                    originalRow: item.originalRow,
+                                    date: item.date,
+                                    classification: classResult?.category || 'その他',
+                                    sentiment: {
+                                        label: sentResult?.sentiment || 'ニュートラル',
+                                        score: sentResult?.score || 0,
+                                        reason: sentResult?.reason || '処理エラー'
+                                    }
+                                };
+                            });
+                            
+                            break; // 成功したらリトライループを抜ける
+                            
+                        } catch (error) {
+                            retryCount++;
+                            console.error(`❌ バッチ処理エラー (試行 ${retryCount}):`, error);
+                            
+                            if (retryCount > PROCESSING_CONFIG.retryCount) {
+                                // 最大リトライ数を超えた場合はエラーデータとして処理
+                                batchResults = currentBatch.map(item => ({
+                                    id: item.id,
+                                    originalRow: item.originalRow,
+                                    date: item.date,
+                                    classification: 'エラー',
+                                    sentiment: { label: 'エラー', score: 0, reason: 'API処理失敗' }
+                                }));
+                                failedItems.push(...currentBatch.map(item => item.id));
+                            } else {
+                                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 指数バックオフ
+                            }
+                        }
                     }
+                    
+                    // 結果をprocessedDataに追加
+                    for (const result of batchResults) {
+                        const dateInfo = parseDate(result.date);
+                        const newRow = [
+                            ...result.originalRow,
+                            result.classification,
+                            dateInfo.year,
+                            dateInfo.month,
+                            dateInfo.yearMonth,
+                            dateInfo.quarter,
+                            result.sentiment.label,
+                            result.sentiment.score,
+                            result.sentiment.reason
+                        ];
+                        
+                        processedData.push(newRow);
+                        sentimentDataList.push(result.sentiment);
+                    }
+                    
+                    processedCount += currentBatch.length;
+                    updateProgress(processedCount, totalRows, currentReviewText, startTime);
+                    
+                    // バッチ間の待機
+                    if (PROCESSING_CONFIG.batchDelay > 0) {
+                        await new Promise(resolve => setTimeout(resolve, PROCESSING_CONFIG.batchDelay));
+                    }
+                }
+                
+                // 最終進捗更新
+                updateProgress(totalRows, totalRows, null, startTime);
+                
+                // エラーサマリー表示
+                if (failedItems.length > 0) {
+                    console.warn(`⚠️ 処理失敗: ${failedItems.length}件`, failedItems);
                 }
                 
                 let statusMessage = `処理完了！OpenAI API統合版 - 高精度分類システム`;
