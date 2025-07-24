@@ -344,7 +344,6 @@
 
         <div style="text-align: center;">
             <button onclick="processData()" id="processBtn" style="display: none;">データ処理を開始</button>
-            <button onclick="debugDateData()" id="debugBtn" class="debug-button" style="display: none;">日付データをデバッグ</button>
             <button onclick="downloadExcel()" id="downloadBtn" disabled>Excelファイルをダウンロード</button>
             <button onclick="toggleVisualization()" id="visualizeBtn" disabled style="background-color: #2196F3;">📊 可視化表示</button>
         </div>
@@ -615,9 +614,10 @@
             
             let date = null;
             
-            if (typeof dateStr === 'number' && dateStr > 25569) {
+            if (typeof dateStr === 'number' && dateStr >= 1) {
                 const excelEpoch = new Date(1899, 11, 30);
                 date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
+                console.log(`Excelシリアル値変換: ${dateStr} → ${date.toLocaleDateString('ja-JP')}`);
             }
             else if (typeof dateStr === 'string') {
                 const yearMonthMatch = dateStr.match(/(\d{4})年(\d{1,2})月/);
@@ -656,15 +656,16 @@
             return { year: '', month: '', yearMonth: '', quarter: '' };
         }
 
-        function debugDateData() {
+        // 🚀 コンソール用日付デバッグ機能（window.debugDateData()で実行可能）
+        window.debugDateData = function() {
             if (!rawData || rawData.length < 2) {
                 const rawReviewFile = Object.values(uploadedFiles).find(file => 
                     file.name.toLowerCase().includes('raw_review') || file.name.toLowerCase().includes('review')
                 );
                 
                 if (!rawReviewFile) {
-                    alert('レビューデータファイルが見つかりません');
-                    return;
+                    console.error('❌ レビューデータファイルが見つかりません');
+                    return 'Error: Review data file not found';
                 }
                 
                 const rawWorkbook = XLSX.read(rawReviewFile.data);
@@ -672,10 +673,15 @@
                 rawData = XLSX.utils.sheet_to_json(rawSheet, { header: 1 });
             }
             
-            console.log('=== 日付データのデバッグ情報 ===');
+            console.log('=== 📅 日付データのデバッグ情報 ===');
             console.log('ヘッダー:', rawData[0]);
+            console.log('Excel シリアル値変換テスト:');
+            console.log('  44732 →', new Date(new Date(1899, 11, 30).getTime() + 44732 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP'));
+            console.log('  44738 →', new Date(new Date(1899, 11, 30).getTime() + 44738 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP'));
+            console.log('  45159 →', new Date(new Date(1899, 11, 30).getTime() + 45159 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP'));
+            console.log('');
             
-            for (let i = 1; i <= Math.min(10, rawData.length - 1); i++) {
+            for (let i = 1; i <= Math.min(20, rawData.length - 1); i++) {
                 const dateValue = rawData[i][1];
                 console.log(`${i}行目 B列:`, dateValue, 'タイプ:', typeof dateValue);
                 
@@ -685,7 +691,7 @@
                 }
             }
             
-            alert('コンソールを確認してください。F12を押してConsoleタブを見てください。');
+            return `Date debug completed. Check console for ${Math.min(20, rawData.length - 1)} rows.`;
         }
 
         // 🎯 新機能: 文脈分析機能
