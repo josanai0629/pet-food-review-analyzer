@@ -614,10 +614,14 @@
             
             let date = null;
             
-            if (typeof dateStr === 'number' && dateStr >= 1) {
+            // Excelシリアル値の判定（number型 または string型の数値）
+            const numericValue = typeof dateStr === 'number' ? dateStr : parseFloat(dateStr);
+            const isExcelSerial = !isNaN(numericValue) && numericValue >= 1 && numericValue <= 100000; // 妥当な範囲
+            
+            if (isExcelSerial) {
                 const excelEpoch = new Date(1899, 11, 30);
-                date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
-                console.log(`Excelシリアル値変換: ${dateStr} → ${date.toLocaleDateString('ja-JP')}`);
+                date = new Date(excelEpoch.getTime() + numericValue * 24 * 60 * 60 * 1000);
+                console.log(`Excelシリアル値変換: ${dateStr} (${typeof dateStr}) → ${date.toLocaleDateString('ja-JP')}`);
             }
             else if (typeof dateStr === 'string') {
                 const yearMonthMatch = dateStr.match(/(\d{4})年(\d{1,2})月/);
