@@ -1166,11 +1166,11 @@
             return 'その他';
         }
 
-        // 🤖 OpenAI API統合: 新しい完全版ラベル検出
+        // 🤖 自動分析: 新しい完全版ラベル検出
         async function detectLabelsFromConfigV2(reviewText) {
             if (!reviewText) return 'その他';
             
-            // OpenAI APIを使用した分類
+            // 自動分類処理
             return await detectLabels(reviewText);
         }
 
@@ -1494,7 +1494,7 @@
                 currentReviewSpan.textContent = '全て処理完了';
                 estimatedTime.textContent = '00:00';
             } else {
-                currentStatus.textContent = 'OpenAI分析中...';
+                currentStatus.textContent = '分析中...';
                 currentReviewSpan.textContent = currentReview ? currentReview.substring(0, PROCESSING_CONFIG.maxPreviewLength) + '...' : '処理中...';
                 
                 // 推定残り時間
@@ -1508,8 +1508,8 @@
             }
         }
 
-        // 🤖 OpenAI API統合: 新しいセンチメント分析関数
-        async function analyzeSentimentOpenAI(reviewText) {
+        // 🤖 自動分析: 新しいセンチメント分析関数
+        async function analyzeSentimentAuto(reviewText) {
             if (!reviewText) return { label: 'Neutral', score: 0, reason: '空のテキスト' };
             
             try {
@@ -1941,7 +1941,7 @@
                     console.warn(`⚠️ 処理失敗: ${failedItems.length}件`, failedItems);
                 }
                 
-                let statusMessage = `処理完了！OpenAI API統合版 - 高精度分類システム`;
+                let statusMessage = `処理完了！高精度分類システム`;
                 statusDiv.innerHTML = `<span class="success">${statusMessage}</span>`;
                 
                 downloadBtn.disabled = false;
