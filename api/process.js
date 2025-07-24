@@ -267,17 +267,50 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
         model: 'gpt-4o-mini'
       };
     } catch (parseError) {
-      // JSON解析に失敗した場合の処理
-      console.warn('Failed to parse sentiment JSON, trying text parsing');
+      // JSON解析に失敗した場合の堅牢なフォールバック処理
+      console.warn('Failed to parse sentiment JSON, trying enhanced text parsing');
+      console.warn('Raw result:', result);
       
-      // テキスト形式での解析を試行
-      const lines = result.split('\n').filter(line => line.trim());
-      const sentiment = lines.find(line => line.includes('sentiment'))?.split(':')[1]?.trim() || 'Neutral';
-      const scoreMatch = result.match(/score[\":\s]*(-?\d+)/i);
+      // 🔧 改善されたテキスト解析処理
+      try {
+        // JSONの不完全な部分をクリーニング
+        let cleanedResult = result.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
+        if (cleanedResult.startsWith('{') && cleanedResult.endsWith('}')) {
+          const retryParsed = JSON.parse(cleanedResult);
+          const originalLabel = retryParsed.label || 'Neutral';
+          const labelMapping = {
+            'Positive': 'ポジティブ',
+            'Negative': 'ネガティブ', 
+            'Neutral': 'ニュートラル'
+          };
+          
+          return {
+            sentiment: labelMapping[originalLabel] || originalLabel,
+            score: retryParsed.score || 0,
+            reason: retryParsed.reason || '分析結果なし',
+            model: 'gpt-4o-mini',
+            note: 'Cleaned JSON parsing used'
+          };
+        }
+      } catch (retryError) {
+        console.warn('JSON cleaning also failed, using regex fallback');
+      }
+      
+      // 正規表現によるフォールバック解析
+      const sentimentMatch = result.match(/"label":\s*"(Positive|Negative|Neutral)"/i);
+      const scoreMatch = result.match(/"score":\s*(-?\d+)/);
+      const reasonMatch = result.match(/"reason":\s*"([^"]+)"/);
+      
+      const sentiment = sentimentMatch ? sentimentMatch[1] : 'Neutral';
       const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
-      const reason = lines.find(line => line.includes('reason'))?.split(':')[1]?.trim() || '解析エラー';
+      let reason = reasonMatch ? reasonMatch[1] : '解析エラー';
       
-      // 英語→カタカナ変換（フォールバック用）
+      // 不正な理由テキストをフィルタ
+      if (reason.includes('"score"') || reason.includes('"Positive"') || reason.includes('"Negative"') || reason.includes('"Neutral"')) {
+        reason = '分析完了';
+      }
+      
+      // 英語→カタカナ変換
       const labelMapping = {
         'Positive': 'ポジティブ',
         'Negative': 'ネガティブ', 
@@ -290,7 +323,7 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
         score: score,
         reason: reason,
         model: 'gpt-4o-mini',
-        note: 'Fallback parsing used'
+        note: 'Enhanced fallback parsing used'
       };
     }
   }

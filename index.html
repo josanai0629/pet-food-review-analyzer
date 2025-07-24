@@ -1519,15 +1519,38 @@
             if (!reviewText) return { label: 'Neutral', score: 0, reason: '空のテキスト' };
             
             try {
-                const response = await fetch('/api/classify', {
+                // 🔄 /api/process に統一（Base64エンコード対応）
+                const requestData = {
+                    review: reviewText,
+                    type: 'sentiment'
+                };
+                
+                // デバッグモードに応じて通信方式を切り替え
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-Debug-Mode': PROCESSING_CONFIG.debugMode.toString()
+                };
+                
+                let requestBody;
+                
+                if (PROCESSING_CONFIG.debugMode) {
+                    // デバッグモード: 平文送信
+                    requestBody = JSON.stringify(requestData);
+                } else {
+                    // 本番モード: 暗号化送信
+                    requestBody = JSON.stringify({
+                        p: CryptoUtils.encode([{id: 0, text: reviewText}]),
+                        t: 'sentiment',
+                        id: `sentiment_${Date.now()}`,
+                        ts: Date.now(),
+                        v: "1.0"
+                    });
+                }
+                
+                const response = await fetch('/api/process', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        review: reviewText,
-                        type: 'sentiment'
-                    })
+                    headers: headers,
+                    body: requestBody
                 });
 
                 if (!response.ok) {
@@ -1535,7 +1558,23 @@
                     return { label: 'Neutral', score: 0, reason: 'API エラー' };
                 }
 
-                const data = await response.json();
+                const rawData = await response.json();
+                let data;
+                
+                if (PROCESSING_CONFIG.debugMode) {
+                    // デバッグモード: 平文レスポンス
+                    data = rawData;
+                } else {
+                    // 本番モード: 暗号化レスポンス復号化
+                    if (rawData.d) {
+                        const decryptedData = CryptoUtils.decode(rawData.d);
+                        data = Array.isArray(decryptedData) ? decryptedData[0] : decryptedData;
+                    } else {
+                        data = rawData;
+                    }
+                }
+                
+                // レスポンス形式の統一
                 return {
                     label: data.sentiment || 'Neutral',
                     score: data.score || 0,
