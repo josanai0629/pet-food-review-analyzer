@@ -151,6 +151,16 @@ module.exports = async function handler(req, res) {
 }
 
 /**
+ * モデル設定
+ * - classification: ファインチューニングモデル（分類専用最適化）
+ * - sentiment: 汎用モデル（センチメント分析に適している）
+ */
+const MODEL_CONFIG = {
+  classification: 'ft:gpt-4.1-nano-2025-04-14:personal::BwlMfAWg',
+  sentiment: 'gpt-4o-mini'
+};
+
+/**
  * OpenAI APIリクエスト処理（カスタムカテゴリ対応・固定テンプレート）
  */
 async function processOpenAIRequest(reviewText, type, customCategories = null) {
@@ -203,7 +213,7 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'ft:gpt-4.1-nano-2025-04-14:personal::BwlMfAWg', // ファインチューニングモデル
+      model: MODEL_CONFIG[type] || 'gpt-4o-mini', // タイプ別モデル選択
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1, // 一貫性重視
       max_tokens: type === 'sentiment' ? 200 : 50
@@ -242,7 +252,7 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
     return { 
       category: category,
       confidence: 0.9, // OpenAIは高信頼度
-      model: 'ft:gpt-4.1-nano-2025-04-14:personal::BwlMfAWg'
+      model: MODEL_CONFIG[type] || 'gpt-4o-mini'
     };
     
   } else if (type === 'sentiment') {
@@ -264,7 +274,7 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
         sentiment: japaneseLabel,
         score: sentimentData.score || 0,
         reason: sentimentData.reason || '分析結果なし',
-        model: 'ft:gpt-4.1-nano-2025-04-14:personal::BwlMfAWg'
+        model: MODEL_CONFIG[type] || 'gpt-4o-mini'
       };
     } catch (parseError) {
       // JSON解析に失敗した場合の堅牢なフォールバック処理
@@ -288,7 +298,7 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
             sentiment: labelMapping[originalLabel] || originalLabel,
             score: retryParsed.score || 0,
             reason: retryParsed.reason || '分析結果なし',
-            model: 'ft:gpt-4.1-nano-2025-04-14:personal::BwlMfAWg',
+            model: MODEL_CONFIG[type] || 'gpt-4o-mini',
             note: 'Cleaned JSON parsing used'
           };
         }
@@ -322,7 +332,7 @@ Output: Return ONLY the exact label name in Japanese (example: ${customCategorie
         sentiment: japaneseLabel,
         score: score,
         reason: reason,
-        model: 'ft:gpt-4.1-nano-2025-04-14:personal::BwlMfAWg',
+        model: MODEL_CONFIG[type] || 'gpt-4o-mini',
         note: 'Enhanced fallback parsing used'
       };
     }
