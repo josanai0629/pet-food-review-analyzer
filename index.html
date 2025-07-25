@@ -2459,7 +2459,6 @@
                 html += '<p><strong>ラベル設定:</strong> デフォルト設定</p>';
             }
             
-            html += '<p><strong>🚀 Phase 3:</strong> 強化版スコアリングシステム完全版適用済み（90%+ 精度）</p>';
             
             html += '<p><strong>ラベル別件数:</strong></p><ul>';
             Object.entries(labelStats).sort((a, b) => b[1] - a[1]).forEach(([label, count]) => {
@@ -2507,11 +2506,11 @@
             const ws3 = XLSX.utils.aoa_to_sheet(sentimentSummaryData);
             XLSX.utils.book_append_sheet(wb, ws3, 'センチメント分析');
             
-            XLSX.writeFile(wb, 'ペットフードレビュー分析結果_Phase3_完全版.xlsx');
+            XLSX.writeFile(wb, 'ペットフードレビュー分析結果.xlsx');
         }
 
         function createStatisticsSheet() {
-            const statsData = [['ペットフードレビュー分析結果 - 統計分析（Phase 3: 強化版完全版）']];
+            const statsData = [['ペットフードレビュー分析結果 - 統計分析']];
             statsData.push([]);
             
             const yearMonthLabelCounts = {};
@@ -2630,7 +2629,7 @@
         }
 
         function createSentimentSummarySheet() {
-            const summaryData = [['センチメント分析サマリー（Phase 3: 強化版完全版）']];
+            const summaryData = [['センチメント分析サマリー']];
             summaryData.push([]);
             
             const positive = sentimentDataList.filter(s => s.label === 'ポジティブ').length;
