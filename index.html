@@ -1711,13 +1711,32 @@
         // 🎛️ 処理設定（柔軟に変更可能）
         const PROCESSING_CONFIG = {
             batchSize: 10,              // バッチサイズ（10件ずつ）
-            reviewTextColumn: 10,       // レビューテキスト列（K列=10、0ベース）
+            reviewTextColumn: null,     // レビューテキスト列（動的に検索）
             batchDelay: 100,            // バッチ間待機時間(ms)
             retryCount: 3,              // リトライ回数
             timeout: 30000,             // タイムアウト時間(ms)
             maxPreviewLength: 50,       // 進捗表示用レビュープレビュー文字数
             debugMode: false            // デバッグモード（開発時のみtrue）
         };
+        
+        // 🔍 review_text列を動的に検索する関数
+        function findReviewTextColumn(headers) {
+            if (!headers || headers.length === 0) return -1;
+            
+            // review_textヘッダーを検索（大文字小文字を区別しない）
+            const reviewIndex = headers.findIndex(header => 
+                String(header).toLowerCase() === 'review_text'
+            );
+            
+            if (reviewIndex === -1) {
+                console.error('❌ review_textヘッダーが見つかりません');
+                console.log('利用可能なヘッダー:', headers);
+            } else {
+                console.log(`✅ review_text列を発見: ${reviewIndex}列目（${String.fromCharCode(65 + reviewIndex)}列）`);
+            }
+            
+            return reviewIndex;
+        }
         
         // 🔐 通信隠蔽ユーティリティ
         const CryptoUtils = {
@@ -1804,6 +1823,30 @@
                 console.log('ヘッダー:', rawData[0]);
                 console.log('1行目データ:', rawData[1]);
                 console.log('2行目データ:', rawData[2]);
+                
+                // 🔍 review_text列を検索
+                PROCESSING_CONFIG.reviewTextColumn = findReviewTextColumn(rawData[0]);
+                
+                if (PROCESSING_CONFIG.reviewTextColumn === -1) {
+                    // review_textヘッダーが見つからない場合のエラー処理
+                    statusDiv.innerHTML = '<span class="error">❌ エラー: review_textヘッダーが存在しません</span>';
+                    processBtn.disabled = false;
+                    
+                    // エラーメッセージ詳細を表示
+                    const errorDetails = document.createElement('div');
+                    errorDetails.style.marginTop = '10px';
+                    errorDetails.style.padding = '10px';
+                    errorDetails.style.backgroundColor = '#ffe6e6';
+                    errorDetails.style.borderRadius = '5px';
+                    errorDetails.innerHTML = `
+                        <p><strong>問題:</strong> Excelファイルのヘッダー行に "review_text" が見つかりません。</p>
+                        <p><strong>解決方法:</strong> ヘッダー行に "review_text" という列名があることを確認してください。</p>
+                        <p><strong>検出されたヘッダー:</strong> ${rawData[0].join(', ')}</p>
+                    `;
+                    statusDiv.appendChild(errorDetails);
+                    
+                    throw new Error('review_text列が見つかりません');
+                }
                 
                 let headers = [...rawData[0], 'ラベル', '年', '月', '年月', 'クォーター', 'センチメント（ラベル）', 'センチメント（スコア）', 'センチメント（理由）'];
                 processedData = [headers];
@@ -2437,7 +2480,7 @@
                 const row = processedData[i];
                 const sentimentLines = row[15].split('\\n');
                 html += `<div class="result-item">
-                    <strong>レビュー:</strong> ${String(row[10]).substring(0, 100)}...<br>
+                    <strong>レビュー:</strong> ${String(row[PROCESSING_CONFIG.reviewTextColumn]).substring(0, 100)}...<br>
                     <strong>ラベル:</strong> ${row[11]}<br>
                     <strong>年月:</strong> ${row[14]}<br>
                     <strong>センチメント分析:</strong><br>
